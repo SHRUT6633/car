@@ -1,6 +1,6 @@
 """
 ======================================================================================
-         AUTONOMOUS 4WS SOFTWARE ARCHITECTURE - MAIN RUNTIME ENTRYPOINT
+         AUTONOMOUS 4WS SOFTWARE ARCHITECTURE - ASYNC MULTI-THREADED MAIN
          Raspberry Pi 4B + ESP32-S3 + Single Servo Mechanical 4WS
          WRO Future Engineers 2026 Competition Edition
 ======================================================================================
@@ -10,7 +10,6 @@ import os
 import sys
 import logging
 
-# Ensure root workspace is in import path
 sys.path.append(os.path.dirname(__file__))
 
 from layers.layer0_system_manager import SystemManager
@@ -29,20 +28,19 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config", "robot_config.js
 
 def main():
     print("======================================================================")
-    print("     STARTING AUTONOMOUS 4WS VEHICLE (WRO FUTURE ENGINEERS 2026)      ")
+    print("   STARTING MULTI-THREADED ASYNC 4WS VEHICLE (WRO 2026 PRO STACK)    ")
     print("======================================================================")
 
-    # 1. Initialize Layer 0 System Manager
     sys_mgr = SystemManager(CONFIG_PATH)
     config = sys_mgr.config
     loop_freq = config.get("system", {}).get("loop_frequency_hz", 100)
     target_dt = 1.0 / loop_freq
 
-    # 2. Instantiate Layers 1 through 10
-    layer1_sensors   = SensorLayer(config)
+    # Instantiate Multi-Threaded Layers
+    layer1_sensors   = SensorLayer(config)      # Spawns Async Sensor Polling Thread
     layer2_time_sync = TimeSyncLayer(buffer_size=50)
     layer3_fusion    = SensorFusionLayer(config)
-    layer4_percep    = PerceptionLayer(config)
+    layer4_percep    = PerceptionLayer(config)    # Spawns Async Perception Thread @ 30 FPS
     layer5_local     = LocalizationLayer(config)
     layer6_mission   = MissionManagerLayer(config)
     layer7_path      = PathPlannerLayer(config)
@@ -50,46 +48,41 @@ def main():
     layer9_kin       = Kinematics4WSLayer(config)
     layer10_ctrl     = MotionControllerLayer(config)
 
-    logging.info("[MAIN] All 10 Software Architecture Layers Successfully Initialized.")
+    logging.info("[MAIN] Async Multi-Threaded Layers Initialized. Running Control Loop @ 100 Hz...")
 
-    # Main Loop Transient States
     commanded_steering_rad = 0.0
     commanded_speed = 0.0
 
     sys_mgr.running = True
-    logging.info(f"[MAIN] Entering Autonomous Execution Loop @ {loop_freq} Hz...")
 
     try:
         while sys_mgr.running:
             loop_start = time.time()
 
-            # LAYER 1: Read & Filter Sensors (VL53L1X, VL53L0X L/R, MPU6050)
+            # Instant Lock-Free Fetch from Async Background Threads (Zero Blocking!)
             raw_sensors = layer1_sensors.read_sensors()
+            perception  = layer4_percep.process_frame(frame=None)
 
-            # LAYER 4: Environment Perception (Pi Camera Frame Processing)
-            # (Note: Camera frame passed from camera thread or mocked)
-            perception = layer4_percep.process_frame(frame=None)
-
-            # LAYER 2: Time Synchronization & Buffer Management
+            # LAYER 2: Time Synchronization
             layer2_time_sync.push_frame(raw_sensors, perception)
             synced_frame = layer2_time_sync.get_latest_frame()
 
-            # LAYER 3: Sensor Fusion (EKF / Complementary Filter)
+            # LAYER 3: 6D EKF Sensor Fusion
             fused_state = layer3_fusion.update(synced_frame, commanded_speed, commanded_steering_rad)
 
-            # LAYER 5: Localization & Track Alignment
+            # LAYER 5: Localization
             localization = layer5_local.update(fused_state, raw_sensors)
 
             # LAYER 6: Mission Manager & WRO 2026 Surprise Rules Engine
             mission_status = layer6_mission.update_state(perception, raw_sensors, localization)
 
-            # LAYER 7: Path Planning (Corridor / Avoidance Offset)
+            # LAYER 7: Path Planning
             path_plan = layer7_path.plan_path(localization, mission_status)
 
-            # LAYER 8: Trajectory Optimization (Curvature & Speed Profiling)
+            # LAYER 8: Trajectory Optimization
             traj_opt = layer8_traj.optimize(path_plan, raw_sensors, mission_status)
 
-            # LAYER 10: Motion Controller (Stanley Control Law)
+            # LAYER 10: Motion Controller (Adaptive Stanley Controller)
             ctrl_output = layer10_ctrl.compute_control(localization, path_plan, traj_opt)
             commanded_steering_rad = ctrl_output["desired_steering_rad"]
             commanded_speed = ctrl_output["target_speed"]
@@ -98,33 +91,39 @@ def main():
             kin_output = layer9_kin.compute_steering(commanded_steering_rad)
             servo_angle_deg = kin_output["servo_angle_deg"]
 
-            # TRANSMIT: Serial Binary Packet -> ESP32-S3 Real-Time Motor Controller
+            # TRANSMIT: USB Serial Binary Packet -> ESP32-S3 Real-Time Controller
             layer10_ctrl.transmit_command(servo_angle_deg, commanded_speed)
 
-            # Performance & Diagnostics Tracking
+            # Diagnostics & Performance Metrics
             sys_mgr.update_performance()
 
-            # Maintain Target Loop Rate
+            # Target 100 Hz Loop Timing
             elapsed = time.time() - loop_start
             sleep_time = target_dt - elapsed
             if sleep_time > 0:
                 time.sleep(sleep_time)
 
-            # Diagnostics Console Heartbeat (Every 50 iterations ~ 0.5s)
+            # Console Diagnostics Heartbeat (Every 50 loops ~ 0.5s)
             if sys_mgr.loop_counts % 50 == 0:
+                flags = raw_sensors.get("flags", {})
+                f_flag = "OK" if flags.get("front_ok", False) else "TIMEOUT"
+                l_flag = "OK" if flags.get("left_ok", False) else "TIMEOUT"
+                r_flag = "OK" if flags.get("right_ok", False) else "TIMEOUT"
+
                 logging.info(
                     f"FPS: {sys_mgr.get_fps():.1f} | Latency: {sys_mgr.get_average_latency_ms():.2f}ms | "
                     f"State: {mission_status['state']} | Servo: {servo_angle_deg}° | Speed: {commanded_speed}% | "
-                    f"Front: {raw_sensors['front_mm']}mm L: {raw_sensors['left_mm']}mm R: {raw_sensors['right_mm']}mm"
+                    f"Front[{f_flag}]: {raw_sensors['front_mm']}mm L[{l_flag}]: {raw_sensors['left_mm']}mm R[{r_flag}]: {raw_sensors['right_mm']}mm"
                 )
 
     except KeyboardInterrupt:
-        logging.info("[MAIN] KeyboardInterrupt received. Shutting down system cleanly...")
+        logging.info("[MAIN] KeyboardInterrupt received. Cleaning up async worker threads...")
     finally:
         sys_mgr.running = False
-        # Send emergency stop command to ESP32-S3
+        layer1_sensors.stop()
+        layer4_percep.stop()
         layer10_ctrl.transmit_command(0.0, 0.0)
-        logging.info("[MAIN] Autonomous 4WS Software Terminated. Vehicle Safely Stopped.")
+        logging.info("[MAIN] System Terminated Safely.")
 
 if __name__ == "__main__":
     main()
