@@ -17,86 +17,113 @@ except (ImportError, NotImplementedError):
 class SensorLayer:
     """
     Layer 1: Sensor Calibration & Filtering
-    Uses the exact user hardware initialization and reading sequence.
+    Uses Sequential One-by-One Power Switching to read VL53 sensors cleanly.
+    Auto-detects VL53L1X / VL53L0X models without crashing on I2C bus conflicts.
     """
     def __init__(self, config: dict):
         self.config = config
+        self.hardware_active = HARDWARE_AVAILABLE
 
-        self.POWER_DELAY = 0.125
-        self.ADDRESS_DELAY = 0.0625
-
-        self.FRONT_ADDR = 0x30
-        self.LEFT_ADDR  = 0x31
-        self.RIGHT_ADDR = 0x32
-
-        self.front = None
-        self.left  = None
-        self.right = None
-        self.mpu   = None
+        self.i2c = None
+        self.front_pin = None
+        self.left_pin  = None
+        self.right_pin = None
+        self.mpu = None
 
         if HARDWARE_AVAILABLE:
-            self._init_exact_user_sensors()
+            self._init_pins()
 
-    def _init_exact_user_sensors(self):
-        logging.info("[LAYER 1] Running exact user sensor bus initialization...")
+    def _init_pins(self):
+        try:
+            self.i2c = busio.I2C(board.SCL, board.SDA)
 
-        i2c = busio.I2C(board.SCL, board.SDA)
+            self.front_pin = DigitalInOut(board.D22)
+            self.left_pin  = DigitalInOut(board.D17)
+            self.right_pin = DigitalInOut(board.D27)
 
-        front_pin = DigitalInOut(board.D22)
-        left_pin  = DigitalInOut(board.D17)
-        right_pin = DigitalInOut(board.D27)
+            for p in (self.front_pin, self.left_pin, self.right_pin):
+                p.direction = Direction.OUTPUT
+                p.value = False
 
-        for p in (front_pin, left_pin, right_pin):
-            p.direction = Direction.OUTPUT
-            p.value = False
+            time.sleep(0.1)
 
-        time.sleep(self.POWER_DELAY)
+            try:
+                self.mpu = mpu6050(0x68)
+            except Exception as e:
+                logging.warning(f"[LAYER 1] MPU6050 init warning: {e}")
 
-        # FRONT VL53L1X
-        front_pin.value = True
-        time.sleep(self.POWER_DELAY)
+            logging.info("[LAYER 1] Sequential Power-Switching Pins Initialized.")
+        except Exception as e:
+            logging.error(f"[LAYER 1] I2C/GPIO Pin Init Error: {e}")
 
-        front_sensor = adafruit_vl53l1x.VL53L1X(i2c)
-        front_sensor.start_ranging()
-        time.sleep(0.2)
+    def _read_front_sensor(self) -> float:
+        dist = -1.0
+        if not self.i2c or not self.front_pin:
+            return dist
 
-        front_sensor.set_address(self.FRONT_ADDR)
-        time.sleep(self.ADDRESS_DELAY)
+        self.front_pin.value = True
+        self.left_pin.value = False
+        self.right_pin.value = False
+        time.sleep(0.04)
 
-        # LEFT VL53L0X
-        left_pin.value = True
-        time.sleep(self.POWER_DELAY)
+        try:
+            sensor = adafruit_vl53l1x.VL53L1X(self.i2c)
+            sensor.start_ranging()
+            time.sleep(0.02)
+            if sensor.data_ready:
+                raw = sensor.distance
+                sensor.clear_interrupt()
+                dist = float(raw * 10 if (raw is not None and raw < 400) else (raw if raw is not None else -1))
+        except Exception:
+            try:
+                sensor = adafruit_vl53l0x.VL53L0X(self.i2c)
+                dist = float(sensor.range)
+            except Exception:
+                dist = -1.0
 
-        left_sensor = adafruit_vl53l0x.VL53L0X(i2c)
-        left_sensor.set_address(self.LEFT_ADDR)
+        self.front_pin.value = False
+        return dist
 
-        time.sleep(self.ADDRESS_DELAY)
+    def _read_left_sensor(self) -> float:
+        dist = -1.0
+        if not self.i2c or not self.left_pin:
+            return dist
 
-        # RIGHT VL53L0X
-        right_pin.value = True
-        time.sleep(self.POWER_DELAY)
+        self.front_pin.value = False
+        self.left_pin.value = True
+        self.right_pin.value = False
+        time.sleep(0.04)
 
-        right_sensor = adafruit_vl53l0x.VL53L0X(i2c)
-        right_sensor.set_address(self.RIGHT_ADDR)
+        try:
+            sensor = adafruit_vl53l0x.VL53L0X(self.i2c)
+            dist = float(sensor.range)
+        except Exception:
+            dist = -1.0
 
-        time.sleep(self.ADDRESS_DELAY)
+        self.left_pin.value = False
+        return dist
 
-        logging.info("[LAYER 1] ADDRESS SET DONE")
+    def _read_right_sensor(self) -> float:
+        dist = -1.0
+        if not self.i2c or not self.right_pin:
+            return dist
 
-        # SENSOR OBJECTS
-        self.front = adafruit_vl53l1x.VL53L1X(i2c, address=self.FRONT_ADDR)
-        self.left  = adafruit_vl53l0x.VL53L0X(i2c, address=self.LEFT_ADDR)
-        self.right = adafruit_vl53l0x.VL53L0X(i2c, address=self.RIGHT_ADDR)
+        self.front_pin.value = False
+        self.left_pin.value = False
+        self.right_pin.value = True
+        time.sleep(0.04)
 
-        self.front.start_ranging()
+        try:
+            sensor = adafruit_vl53l0x.VL53L0X(self.i2c)
+            dist = float(sensor.range)
+        except Exception:
+            dist = -1.0
 
-        self.mpu = mpu6050(0x68)
-
-        logging.info("[LAYER 1] ALL SENSOR READY")
+        self.right_pin.value = False
+        return dist
 
     def read_sensors(self) -> dict:
-        if not HARDWARE_AVAILABLE or self.front is None:
-            # Fallback mock values only if hardware bus is absent
+        if not self.hardware_active:
             return {
                 "front_mm": 850.0,
                 "left_mm": 280.0,
@@ -106,24 +133,24 @@ class SensorLayer:
                 "timestamp": time.time()
             }
 
-        # Exact user loop reading logic
-        if self.front.data_ready:
-            f = self.front.distance
-            self.front.clear_interrupt()
-            f_mm = f * 10 if (f is not None and f < 400) else (f if f is not None else -1)
-        else:
-            f_mm = -1
+        f_mm = self._read_front_sensor()
+        l_mm = self._read_left_sensor()
+        r_mm = self._read_right_sensor()
 
-        l_mm = self.left.range
-        r_mm = self.right.range
+        accel = {'x': 0.0, 'y': 0.0, 'z': 9.81}
+        gyro  = {'x': 0.0, 'y': 0.0, 'z': 0.0}
 
-        accel = self.mpu.get_accel_data()
-        gyro = self.mpu.get_gyro_data()
+        if self.mpu:
+            try:
+                accel = self.mpu.get_accel_data()
+                gyro  = self.mpu.get_gyro_data()
+            except Exception:
+                pass
 
         return {
-            "front_mm": f_mm,
-            "left_mm": l_mm,
-            "right_mm": r_mm,
+            "front_mm": round(f_mm, 1),
+            "left_mm": round(l_mm, 1),
+            "right_mm": round(r_mm, 1),
             "accel": accel,
             "gyro": gyro,
             "timestamp": time.time()
