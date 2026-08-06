@@ -13,12 +13,13 @@ except (ImportError, NotImplementedError):
     HARDWARE_AVAILABLE = False
     logging.warning("[LAYER 1] Hardware libraries not available.")
 
+OFFSET_LR_MM = 50.0 # 5cm calibration offset correction
 
 class SensorLayer:
     """
     Layer 1: Sensor Calibration & Filtering
-    Uses Sequential One-by-One Power Switching to read VL53 sensors cleanly.
-    Auto-detects VL53L1X / VL53L0X models without crashing on I2C bus conflicts.
+    Includes -50mm (-5cm) calibration offset subtraction for Left & Right sensors.
+    Includes VL53L1X timing budget & cm->mm conversion for Front distance.
     """
     def __init__(self, config: dict):
         self.config = config
@@ -52,9 +53,9 @@ class SensorLayer:
             except Exception as e:
                 logging.warning(f"[LAYER 1] MPU6050 init warning: {e}")
 
-            logging.info("[LAYER 1] Sequential Power-Switching Pins Initialized.")
+            logging.info("[LAYER 1] Sensor Pins & Bus Ready.")
         except Exception as e:
-            logging.error(f"[LAYER 1] I2C/GPIO Pin Init Error: {e}")
+            logging.error(f"[LAYER 1] Init Error: {e}")
 
     def _read_front_sensor(self) -> float:
         dist = -1.0
@@ -64,22 +65,30 @@ class SensorLayer:
         self.front_pin.value = True
         self.left_pin.value = False
         self.right_pin.value = False
-        time.sleep(0.04)
+        time.sleep(0.05)
 
         try:
             sensor = adafruit_vl53l1x.VL53L1X(self.i2c)
-            sensor.start_ranging()
-            time.sleep(0.02)
-            if sensor.data_ready:
-                raw = sensor.distance
-                sensor.clear_interrupt()
-                dist = float(raw * 10 if (raw is not None and raw < 400) else (raw if raw is not None else -1))
-        except Exception:
             try:
-                sensor = adafruit_vl53l0x.VL53L0X(self.i2c)
-                dist = float(sensor.range)
+                sensor.timing_budget = 50 # 50ms budget for fast accurate ranging
             except Exception:
-                dist = -1.0
+                pass
+
+            sensor.start_ranging()
+            time.sleep(0.06)
+
+            for _ in range(5):
+                if sensor.data_ready:
+                    raw_cm = sensor.distance
+                    sensor.clear_interrupt()
+                    if raw_cm is not None and raw_cm > 0:
+                        dist = float(raw_cm * 10.0) # adafruit_vl53l1x returns cm -> convert to mm
+                    break
+                time.sleep(0.01)
+
+            sensor.stop_ranging()
+        except Exception:
+            dist = -1.0
 
         self.front_pin.value = False
         return dist
@@ -96,7 +105,9 @@ class SensorLayer:
 
         try:
             sensor = adafruit_vl53l0x.VL53L0X(self.i2c)
-            dist = float(sensor.range)
+            raw_mm = sensor.range
+            if raw_mm is not None and raw_mm > 0:
+                dist = max(0.0, float(raw_mm) - OFFSET_LR_MM) # Subtract 5cm (50mm) calibration error
         except Exception:
             dist = -1.0
 
@@ -115,7 +126,9 @@ class SensorLayer:
 
         try:
             sensor = adafruit_vl53l0x.VL53L0X(self.i2c)
-            dist = float(sensor.range)
+            raw_mm = sensor.range
+            if raw_mm is not None and raw_mm > 0:
+                dist = max(0.0, float(raw_mm) - OFFSET_LR_MM) # Subtract 5cm (50mm) calibration error
         except Exception:
             dist = -1.0
 
@@ -126,8 +139,8 @@ class SensorLayer:
         if not self.hardware_active:
             return {
                 "front_mm": 850.0,
-                "left_mm": 280.0,
-                "right_mm": 290.0,
+                "left_mm": 230.0,
+                "right_mm": 240.0,
                 "accel": {'x': 0.0, 'y': 0.0, 'z': 9.81},
                 "gyro": {'x': 0.0, 'y': 0.0, 'z': 0.0},
                 "timestamp": time.time()

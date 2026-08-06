@@ -1,6 +1,6 @@
 """
 ======================================================================================
-         ROBUST SEQUENTIAL SENSOR TEST & AUTO-DETECTION SCRIPT
+         VL53L1X TIMING BUDGET FIX & 50mm OFFSET CALIBRATION
 ======================================================================================
 """
 import time
@@ -30,83 +30,96 @@ for p in (front_pin, left_pin, right_pin):
     p.direction = Direction.OUTPUT
     p.value = False
 
-time.sleep(0.2)
+time.sleep(0.125)
 
-# MPU6050 Setup
+# 50mm (5cm) Calibration Offset Subtraction for Left/Right
+OFFSET_LR_MM = 50.0
+
+# Setup MPU6050
 try:
     mpu = mpu6050(0x68)
-    print("[SUCCESS] MPU6050 IMU Online at 0x68")
-except Exception as e:
+except Exception:
     mpu = None
-    print(f"[WARN] MPU6050 not detected at 0x68: {e}")
 
 
 def read_front_sensor():
-    """Turn ON Front (GPIO 22), read distance, then turn OFF."""
-    dist = -1
+    """Turn ON Front (GPIO 22), read VL53L1X distance in mm."""
+    dist = -1.0
     front_pin.value = True
     left_pin.value = False
     right_pin.value = False
     time.sleep(0.05)
 
-    # Try VL53L1X first, fallback to VL53L0X if model mismatch occurs
     try:
         sensor = adafruit_vl53l1x.VL53L1X(i2c)
-        sensor.start_ranging()
-        time.sleep(0.02)
-        if sensor.data_ready:
-            raw = sensor.distance
-            sensor.clear_interrupt()
-            dist = raw * 10 if (raw is not None and raw < 400) else (raw if raw is not None else -1)
-    except Exception:
         try:
-            sensor = adafruit_vl53l0x.VL53L0X(i2c)
-            dist = sensor.range
+            sensor.timing_budget = 50 # 50ms budget for fast accurate ranging
         except Exception:
-            dist = -1
+            pass
+
+        sensor.start_ranging()
+        time.sleep(0.06)
+
+        # Poll for ready sample
+        for _ in range(5):
+            if sensor.data_ready:
+                raw_cm = sensor.distance
+                sensor.clear_interrupt()
+                if raw_cm is not None and raw_cm > 0:
+                    dist = float(raw_cm * 10.0) # adafruit_vl53l1x returns cm -> convert to mm
+                break
+            time.sleep(0.01)
+
+        sensor.stop_ranging()
+    except Exception:
+        dist = -1.0
 
     front_pin.value = False
     return dist
 
 
 def read_left_sensor():
-    """Turn ON Left (GPIO 17), read distance, then turn OFF."""
-    dist = -1
+    """Turn ON Left (GPIO 17), read VL53L0X distance in mm with -50mm (-5cm) calibration offset."""
+    dist = -1.0
     front_pin.value = False
     left_pin.value = True
     right_pin.value = False
-    time.sleep(0.05)
+    time.sleep(0.04)
 
     try:
         sensor = adafruit_vl53l0x.VL53L0X(i2c)
-        dist = sensor.range
+        raw_mm = sensor.range
+        if raw_mm is not None and raw_mm > 0:
+            dist = max(0.0, float(raw_mm) - OFFSET_LR_MM) # Subtract 5cm (50mm) error offset
     except Exception:
-        dist = -1
+        dist = -1.0
 
     left_pin.value = False
     return dist
 
 
 def read_right_sensor():
-    """Turn ON Right (GPIO 27), read distance, then turn OFF."""
-    dist = -1
+    """Turn ON Right (GPIO 27), read VL53L0X distance in mm with -50mm (-5cm) calibration offset."""
+    dist = -1.0
     front_pin.value = False
     left_pin.value = False
     right_pin.value = True
-    time.sleep(0.05)
+    time.sleep(0.04)
 
     try:
         sensor = adafruit_vl53l0x.VL53L0X(i2c)
-        dist = sensor.range
+        raw_mm = sensor.range
+        if raw_mm is not None and raw_mm > 0:
+            dist = max(0.0, float(raw_mm) - OFFSET_LR_MM) # Subtract 5cm (50mm) error offset
     except Exception:
-        dist = -1
+        dist = -1.0
 
     right_pin.value = False
     return dist
 
 
 print("==================================================")
-print("   SEQUENTIAL POWER SWITCHING SENSOR TEST RUNNER   ")
+print("  VL53L1X ACCURACY FIX & -5cm CALIBRATED STREAM   ")
 print("==================================================")
 
 try:
@@ -119,13 +132,13 @@ try:
         gyro  = mpu.get_gyro_data()  if mpu else {'x': 0, 'y': 0, 'z': 0}
 
         print("----------------")
-        print("Front :", f, "mm")
-        print("Left  :", l, "mm")
-        print("Right :", r, "mm")
+        print(f"Front : {f:6.1f} mm")
+        print(f"Left  : {l:6.1f} mm (-5cm offset applied)")
+        print(f"Right : {r:6.1f} mm (-5cm offset applied)")
         print("ACC   :", accel)
         print("GYRO  :", gyro)
 
-        time.sleep(0.1)
+        time.sleep(0.05)
 
 except KeyboardInterrupt:
-    print("\n[INFO] Sensor loop stopped cleanly.")
+    print("\n[INFO] Sensor test stopped.")
