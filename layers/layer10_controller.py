@@ -44,9 +44,20 @@ class MotionControllerLayer:
         k(v) = k_base / (1.0 + 0.01 * v)
         delta(t) = theta_error + arctan( (k(v) * e_crosstrack) / (v + ks) )
         """
+        target_speed = traj_opt.get("target_speed", 0.0)
+
+        # Respect steering override from path planner (e.g. starting or parking phases)
+        steering_override_rad = path_plan.get("steering_override_rad", None)
+        if steering_override_rad is not None:
+            return {
+                "desired_steering_rad": round(steering_override_rad, 5),
+                "desired_steering_deg": round(math.degrees(steering_override_rad), 3),
+                "adaptive_k": self.base_k,
+                "target_speed": target_speed
+            }
+
         heading_err = path_plan.get("target_heading_error_rad", 0.0)
         crosstrack_err = localization.get("crosstrack_error_mm", 0.0) / 1000.0  # m
-        target_speed = traj_opt.get("target_speed", 0.0)
         v_m_s = max(0.1, target_speed / 30.0)                                    # m/s scale
 
         # Adaptive Gain Scheduling: decrease gain at high speed to prevent oscillation

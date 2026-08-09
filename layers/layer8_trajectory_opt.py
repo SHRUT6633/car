@@ -30,6 +30,16 @@ class TrajectoryOptimizationLayer:
             self.last_target_speed = 0.0
             return {"target_speed": 0.0, "curvature": 0.0, "jerk_limited": True}
 
+        # Check for speed overrides (e.g. during parking and starting phases)
+        speed_override = path_plan.get("speed_override", None)
+        if speed_override is not None:
+            self.last_target_speed = speed_override
+            return {
+                "target_speed": speed_override,
+                "curvature": 0.0,
+                "jerk_limited": True
+            }
+
         # 1. Cubic Spline Curvature Estimation (1 / R)
         lookahead_m = 0.35
         curvature = abs((2.0 * math.sin(target_heading_err)) / lookahead_m)

@@ -33,6 +33,7 @@ class PacketEncoder:
         servo_raw = int(clamp(servo_angle_deg, -45.0, 45.0) * 100)
         speed_raw = int(clamp(motor_speed, -100.0, 100.0) * 10)
 
+        # Structure: seq(B), cmd(B), servo(h), speed(h)
         payload = struct.pack(">BBhh", self.seq_number, cmd, servo_raw, speed_raw)
         crc = calculate_crc8(HEADER + payload)
         

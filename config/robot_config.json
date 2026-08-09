@@ -6,6 +6,14 @@
     "loop_frequency_hz": 100,
     "log_level": "INFO"
   },
+  "gpio": {
+    "start_switch_pin":  16,
+    "led1_system_pin":   5,
+    "led2_sensors_pin":  6,
+    "led3_camera_pin":   13,
+    "led4_serial_pin":   19,
+    "led5_race_pin":     26
+  },
   "surprise_rules": {
     "SIGN_LOGIC": "NORMAL",
     "DRIVING_DIRECTION": "CCW",
@@ -16,8 +24,10 @@
     "PARKING_REVERSAL": false
   },
   "kinematics_4ws": {
-    "wheelbase_mm": 200.0,
-    "track_width_mm": 150.0,
+    "wheelbase_mm": 160.0,
+    "track_width_mm": 130.0,
+    "length_mm": 230.0,
+    "width_mm": 160.0,
     "max_servo_angle_deg": 35.0,
     "rear_to_front_ratio": 0.85,
     "servo_center_pwm_us": 1500,
@@ -44,10 +54,12 @@
     "frame_width": 640,
     "frame_height": 480,
     "fps": 30,
+    "focal_length_px": 600.0,
     "hsv_red1": { "low": [0, 120, 70], "high": [10, 255, 255] },
     "hsv_red2": { "low": [170, 120, 70], "high": [180, 255, 255] },
     "hsv_green": { "low": [36, 100, 80], "high": [85, 255, 255] },
-    "hsv_blue": { "low": [95, 120, 80], "high": [130, 255, 255] }
+    "hsv_blue": { "low": [95, 120, 80], "high": [130, 255, 255] },
+    "hsv_magenta": { "low": [140, 100, 50], "high": [170, 255, 255] }
   },
   "controller": {
     "stanley_k": 0.75,

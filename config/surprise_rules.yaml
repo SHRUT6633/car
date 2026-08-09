@@ -1,0 +1,8 @@
+SIGN_LOGIC: "NORMAL"          # "NORMAL" or "REVERSED" (swaps red/green pillar logic)
+DRIVING_DIRECTION: "CCW"      # "CW" (clockwise) or "CCW" (counter-clockwise)
+NARROW_TRACK_MODE: false      # true or false (enables higher centering gains)
+STOP_AND_GO_ENABLED: true     # true or false (pauses on blue floor markers)
+STOP_DURATION_SEC: 3.0        # Seconds to wait on blue marker
+EMERGENCY_BRAKE_DIST_MM: 180  # Distance in mm to trigger emergency stop
+PARKING_SIDE: "DYNAMIC"       # "LEFT", "RIGHT", or "DYNAMIC" (auto-detect)
+START_FROM_PARKING: true      # true or false (if starting inside the parking lot)
