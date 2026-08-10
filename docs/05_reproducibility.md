@@ -68,7 +68,7 @@ Below is the complete physical component manifest required to replicate the WRO_
 | **Real-Time MCU** | ESP32-S3 DevKit-C-N8R8 | Espressif Systems | 1 | Real-time PWM generation, 200ms watchdog, LED status driver |
 | **Steering Actuator** | MG995 High-Torque Servo | TowerPro / Standard | 1 | 50 Hz PWM, 900–2100 µs pulse range, 13 kg·cm torque @ 6V |
 | **Drive Motor** | Johnson DC Planetary Gear Motor | Johnson Electric | 1 | 20:1 planetary gearbox, 12V rated, integrated magnetic encoder |
-| **Motor Driver** | TB6612FNG Dual H-Bridge Breakout | Toshiba / SparkFun | 1 | Paralleled channels, 1.2A continuous / 3.2A peak, STBY pin |
+| **Motor Driver** | L298N Dual H-Bridge Module | STMicroelectronics / Generic | 1 | 2A continuous, 12V terminal connected directly to fused battery |
 | **Distance Sensors (Front)** | VL53L1X Time-of-Flight Sensor | STMicroelectronics | 1 | I2C address `0x30`, XSHUT control on GPIO 22, range up to 4m |
 | **Distance Sensors (Sides)**| VL53L0X Time-of-Flight Sensor | STMicroelectronics | 2 | Left (`0x31`, XSHUT GPIO 17), Right (`0x32`, XSHUT GPIO 27) |
 | **Inertial Sensor** | MPU6050 6-DoF Gyro + Accelerometer | InvenSense | 1 | I2C address `0x68`, ±250°/s gyro, ±2g accel, 1 kHz internal |
@@ -76,6 +76,7 @@ Below is the complete physical component manifest required to replicate the WRO_
 | **Power Storage** | 11.1V 3S LiPo Battery (2200 mAh, 25C) | Tattu / GensAce | 1 | Main vehicle power source with XT60 connector |
 | **Logic Regulator** | 5V 3A Synchronous Buck Converter | LM2596 / MP2307 | 1 | Dedicated to Raspberry Pi 4B, ESP32-S3, and sensors |
 | **Actuator Regulator** | 6V 3A Synchronous Buck Converter | LM2596 / MP2307 | 1 | Dedicated to MG995 servo to isolate inductive noise |
+| **Circuit Protection** | 10A Automotive Blade Fuse | Generic Fuse | 1 | Connected directly to battery (+) terminal for all systems |
 | **Status LEDs** | 5mm Diffused Green LEDs | Generic Electronics | 8 | 4 on Pi GPIOs (5, 6, 13, 19), 4 on ESP32 GPIOs (4, 5, 15, 16) |
 | **Fault LED** | 5mm Diffused Red LED | Generic Electronics | 2 | 1 on Pi GPIO 26 (Race/Fault), 1 on ESP32 GPIO 17 (Fault) |
 | **Race Switch** | Momentary Push Button (Active-LOW) | Generic Electronics | 1 | Switch 2 on Pi GPIO 16 with internal pull-up resistor |
@@ -91,13 +92,15 @@ The electrical interconnect between the Raspberry Pi 4B, ESP32-S3, Sensors, Moto
 ```mermaid
 graph TD
     subgraph Power Plane
-        BATT[11.1V 3S LiPo Battery] --> BUCK_LOGIC[5V / 3A Buck Converter A]
-        BATT --> BUCK_ACT[6V / 3A Buck Converter B]
+        BATT[11.1V 3S LiPo Battery] --> FUSE[10A Automotive Blade Fuse]
+        FUSE --> SW[Main Toggle Switch]
+        SW -->|11.1V| BUCK_LOGIC[5V / 3A Buck Converter A]
+        SW -->|11.1V| BUCK_ACT[6V / 3A Buck Converter B]
+        SW -->|11.1V| L298N_12V[L298N Motor Driver 12V Terminal]
         BUCK_LOGIC --> RPI[Raspberry Pi 4B]
         BUCK_LOGIC --> ESP[ESP32-S3 DevKit]
         BUCK_LOGIC --> SENSORS[Sensors Bus 3.3V]
         BUCK_ACT --> SERVO[MG995 Servo VCC]
-        BATT --> TB_VMOT[TB6612FNG VMOT Pin]
     end
 
     subgraph Raspberry Pi 4B GPIO Pinout
@@ -118,10 +121,10 @@ graph TD
     subgraph ESP32-S3 GPIO Pinout
         UART_LINK --> ESP
         ESP -->|GPIO 18 / PWM| SERVO_SIG[MG995 Servo Signal]
-        ESP -->|GPIO 19 / PWM| TB_PWMA[TB6612FNG PWMA Pin]
-        ESP -->|GPIO 20| TB_AIN1[TB6612FNG AIN1 Pin]
-        ESP -->|GPIO 21| TB_AIN2[TB6612FNG AIN2 Pin]
-        ESP -->|GPIO 22| TB_STBY[TB6612FNG STBY Pin]
+        ESP -->|GPIO 19 / PWM| L298N_ENA[L298N ENA Pin]
+        ESP -->|GPIO 20| L298N_IN1[L298N IN1 Pin]
+        ESP -->|GPIO 21| L298N_IN2[L298N IN2 Pin]
+        ESP -->|GPIO 22| TB_STBY[STBY / Enable Monitor]
         ESP -->|GPIO 4| LED1_E[LED1: ESP Boot OK - Green]
         ESP -->|GPIO 5| LED2_E[LED2: Serial Link - Green]
         ESP -->|GPIO 15| LED3_E[LED3: Servo Active - Green]
@@ -154,10 +157,10 @@ graph TD
 | **Pi 4B** | GPIO 26 (Pin 37) | Status LED 5 | Race Active LED | Digital OUT (3.3V) | Blinks at 2 Hz during race |
 | **Pi 4B** | USB Port | ESP32-S3 | Micro-USB / Type-C | USB CDC UART Serial | `/dev/ttyUSB0` @ 115200 baud |
 | **ESP32-S3** | GPIO 18 | MG995 Servo | Signal (Orange Wire) | 50 Hz PWM (900–2100 µs) | Single 4WS Steering Servo |
-| **ESP32-S3** | GPIO 19 | TB6612FNG | PWMA | PWM Speed Output | 0–100% PWM (0–255 duty) |
-| **ESP32-S3** | GPIO 20 | TB6612FNG | AIN1 | Direction Control 1 | HIGH/LOW for FWD/REV |
-| **ESP32-S3** | GPIO 21 | TB6612FNG | AIN2 | Direction Control 2 | LOW/HIGH for FWD/REV |
-| **ESP32-S3** | GPIO 22 | TB6612FNG | STBY | Driver Standby Enable | HIGH = Active, LOW = Failsafe |
+| **ESP32-S3** | GPIO 19 | L298N Driver | ENA (Enable A) | PWM Speed Output | 0–100% PWM (0–255 duty) |
+| **ESP32-S3** | GPIO 20 | L298N Driver | IN1 (Input 1) | Direction Control 1 | HIGH/LOW for FWD/REV |
+| **ESP32-S3** | GPIO 21 | L298N Driver | IN2 (Input 2) | Direction Control 2 | LOW/HIGH for FWD/REV |
+| **ESP32-S3** | GPIO 22 | Status / STBY | Monitor / Enable Pin | HIGH = Active, LOW = Failsafe | Driver health check |
 | **ESP32-S3** | GPIO 4 | Status LED 1 | ESP Boot LED | Digital OUT (3.3V) | Green LED + 220Ω resistor |
 | **ESP32-S3** | GPIO 5 | Status LED 2 | Serial Link LED | Digital OUT (3.3V) | Green LED + 220Ω resistor |
 | **ESP32-S3** | GPIO 15 | Status LED 3 | Servo Status LED | Digital OUT (3.3V) | Green LED + 220Ω resistor |
@@ -195,12 +198,13 @@ Secure the single Johnson DC planetary gear motor (20:1 reduction) into the rear
 Mount the 60mm diameter rubber competition tires onto the wheel hubs. Secure hubs to axle shafts using set-screws. Verify total track width is exactly 130 mm and wheelbase is 160 mm.
 
 ### Step 7: Power Subsystem Wiring
-Mount the 11.1V 3S LiPo battery tray in the center of the chassis to achieve a 50:50 front-to-rear weight balance. Wire the inline 10A blade fuse and main toggle switch. Connect the dual 5V 3A buck converters:
-- Buck Converter A output goes to the Raspberry Pi 4B (pins 2 & 6) and ESP32-S3.
-- Buck Converter B output goes exclusively to the MG995 servo VCC (red wire) and ground.
+Mount the 11.1V 3S LiPo battery tray in the center of the chassis to achieve a 50:50 front-to-rear weight balance. Connect the positive terminal of the battery directly to the inline 10A blade fuse. Wire the output of the 10A fuse through the main mechanical toggle switch, splitting to:
+- Buck Converter A (5V 3A logic output to Raspberry Pi 4B pins 2 & 6 and ESP32-S3).
+- Buck Converter B (6V 3A actuator output exclusively to MG995 servo VCC red wire and ground).
+- L298N Motor Driver 12V high-power terminal (+11.1V fused power).
 
 ### Step 8: Motor Driver Circuit Mounting
-Mount the TB6612FNG motor driver module near the DC motor. Wire VMOT to battery positive (11.1V), VCC to 5V logic, GND to common ground, and connect PWMA, AIN1, AIN2, STBY pins to ESP32-S3 GPIOs 19, 20, 21, 22 respectively.
+Mount the L298N dual H-bridge motor driver module near the Johnson DC motor. Connect the 12V power screw terminal to the fused +11.1V switch output, 5V logic input pin to 5V logic rail, and GND screw terminal to common star ground. Connect ENA, IN1, and IN2 control pins to ESP32-S3 GPIOs 19, 20, 21 respectively. Connect motor output terminals (OUT1, OUT2) to the DC motor terminals.
 
 ### Step 9: Sensor Array Placement & Mounting
 - **Front VL53L1X:** Mount on the front bumper centerline facing directly forward. Connect XSHUT to Pi GPIO 22.
@@ -455,7 +459,7 @@ flowchart TD
     B -->|Motor Not Spinning| F[Check Motor Driver & Battery]
     F --> F1[Measure LiPo Voltage >= 11.1V]
     F1 -->|Voltage Low| F2[Recharge Battery]
-    F1 -->|Voltage OK| F3[Verify TB6612FNG STBY Pin is HIGH on GPIO 22]
+    F1 -->|Voltage OK| F3[Verify L298N STBY Pin is HIGH on GPIO 22]
 
     B -->|Vehicle Oscillates| G[Tune Stanley Gains]
     G --> G1[Reduce stanley_k in robot_config.json from 0.75 to 0.50]
@@ -468,7 +472,7 @@ flowchart TD
 | **LED4 OFF (Serial Lost)** | ESP32-S3 not sending ACK or `/dev/ttyUSB0` disconnected | 1. Verify USB cable connection.<br>2. Check `dmesg \| grep tty`<br>3. Verify ESP32 LED1 is ON.<br>4. Re-flash `esp32_controller.ino`. |
 | **LED2 OFF (Sensor Timeout)** | One of the 3 ToF sensors or MPU6050 failed I2C response | 1. Run `sudo i2cdetect -y 1`.<br>2. Verify 0x30, 0x31, 0x32, 0x68 are present.<br>3. Check XSHUT wire connections on GPIOs 22, 17, 27. |
 | **LED3 OFF (Camera Failed)** | CSI ribbon cable loose or camera interface disabled | 1. Run `vcgencmd get_camera`.<br>2. Power off, reseat CSI ribbon cable.<br>3. Run `sudo raspi-config` to enable camera. |
-| **Motor Does Not Drive** | TB6612FNG STBY pin LOW or LiPo fuse blown | 1. Check 10A blade fuse.<br>2. Verify battery voltage $> 11.1\text{V}$.<br>3. Ensure ESP32 GPIO 22 drives STBY HIGH. |
+| **Motor Does Not Drive** | L298N STBY pin LOW or LiPo fuse blown | 1. Check 10A blade fuse.<br>2. Verify battery voltage $> 11.1\text{V}$.<br>3. Ensure ESP32 GPIO 22 drives STBY HIGH. |
 | **Servo Jitters or Drops** | Servo drawing peak current from logic buck converter | 1. Verify servo is wired to isolated Buck Converter B (6V).<br>2. Ensure logic and actuator grounds are connected. |
 | **Yaw Drift Accumulated** | IMU calibrated while stationary table was vibrating | 1. Re-run `python utils/calibrate_imu.py` on a stationary surface.<br>2. Ensure UKF yaw reset is enabled in `layer3_sensor_fusion.py`. |
 | **Pillars Not Detected** | Room lighting changed HSV response | 1. Launch `python utils/calibrate_hsv.py`.<br>2. Adjust HSV sliders for local lighting and save. |

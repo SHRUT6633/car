@@ -42,7 +42,7 @@ graph TD
 
     CTRL -- "115200 Baud UART (10-byte binary)" --> UART
     PWM -- "GPIO 18 (900-2100 µs)" --> SRV[MG995 Steering Servo]
-    PWM -- "GPIO 19, 20, 21 (PWM, IN1, IN2)" --> MTR[TB6612FNG Driver -> Johnson DC Motor]
+    PWM -- "GPIO 19, 20, 21 (PWM, IN1, IN2)" --> MTR[L298N Driver -> Johnson DC Motor]
 ```
 
 ## 2. Processor Split Justification
@@ -58,7 +58,7 @@ The Raspberry Pi 4B provides unparalleled compute density for its size, footprin
 
 ### 2.2 ESP32-S3: The Low-Level Controller
 While the Pi is excellent for heavy compute, a standard Linux kernel is fundamentally not a Real-Time Operating System (RTOS). Thread preemption, kernel interrupts, and the Python Global Interpreter Lock (GIL) can cause unpredictable jitter in software-generated execution timings.
-- **Deterministic PWM:** The ESP32 utilizes its advanced hardware timers (MCPWM and LEDC peripherals) to generate perfectly stable 50 Hz PWM for the MG995 steering servo (900-2100µs, centered at 1500µs) and high-frequency PWM for the TB6612FNG motor driver on GPIOs 19, 20, and 21. Any jitter in steering PWM translates directly to mechanical oscillations at the wheels.
+- **Deterministic PWM:** The ESP32 utilizes its advanced hardware timers (MCPWM and LEDC peripherals) to generate perfectly stable 50 Hz PWM for the MG995 steering servo (900-2100µs, centered at 1500µs) and high-frequency PWM for the L298N motor driver on GPIOs 19, 20, and 21. Any jitter in steering PWM translates directly to mechanical oscillations at the wheels.
 - **Serial Parsing & CRC:** The ESP32 runs a non-blocking byte-by-byte state machine to parse the 10-byte binary serial packets from the Pi. By running this asynchronously, it ensures every byte is processed instantly, verifying the CRC8 checksum polynomial (0x07) to prevent spurious actuation from line noise.
 - **Watchdog Failsafe:** Autonomous vehicles require hard safety constraints. The ESP32 maintains an independent 200ms hardware timer. If a valid, CRC-verified packet is not received from the Pi within 200ms, the ESP32 enters an `EMERGENCY_STOP` state, asserting the STBY pin (GPIO 22) low, dropping motor PWM to zero, and centering the steering.
 

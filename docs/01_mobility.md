@@ -265,11 +265,11 @@ To transmit this torque to all four wheels without violating the single-motor ru
 2.  The central driveshaft routes power to front and rear open differentials via hardened steel bevel gears (1:1 ratio).
 3.  The differentials split the torque to the left and right wheels via steel constant-velocity (CVD) joint half-shafts. This allows the wheels to steer up to $35^\circ$ and articulate over uneven surfaces while receiving continuous, un-interrupted power.
 
-### 4.4 Motor Driver Integration (TB6612FNG)
+### 4.4 Motor Driver Integration (L298N)
 
-Power switching is handled by a Toshiba TB6612FNG dual H-bridge motor driver. Although capable of driving two separate motors at 1.2A continuous each, we bridge the output channels (A and B) in parallel to double the continuous current capacity to 2.4A (with 6.4A peak capabilities), easily handling the Johnson motor's dynamic load spikes.
+Power switching is handled by a Toshiba L298N dual H-bridge motor driver. Although capable of driving two separate motors at 1.2A continuous each, we bridge the output channels (A and B) in parallel to double the continuous current capacity to 2.4A (with 6.4A peak capabilities), easily handling the Johnson motor's dynamic load spikes.
 
-The GPIO mapping from the ESP32-S3 (low-level controller) to the TB6612FNG is strictly defined:
+The GPIO mapping from the ESP32-S3 (low-level controller) to the L298N is strictly defined:
 *   **PWM (Speed Control):** GPIO 19
 *   **IN1 (Direction 1):** GPIO 20
 *   **IN2 (Direction 2):** GPIO 21
@@ -401,7 +401,7 @@ The following detailed BOM includes supplier parts, ensuring total reproducibili
 | **Slick Tire & Wheel Rim** | 4 | Shore 25A Silicone / ABS Rim | Custom Cast / Printed | $10.00 |
 | **Flanged Ball Bearings** | 16| 5x10x4 mm, 2RS Stainless | SKF (SKU: F6100-2RS) | $15.00 |
 | **PTFE Tie-Rod Ends** | 10| M3 Threaded Aluminum | Traxxas (SKU: 1942) | $12.00 |
-| **TB6612FNG Motor Driver** | 1 | Dual H-Bridge | Pololu (SKU: 713) | $5.00 |
+| **L298N Motor Driver** | 1 | Dual H-Bridge | Pololu (SKU: 713) | $5.00 |
 | **M3 Fastener Assortment** | 1 | M3 Socket Head Cap Screws | McMaster-Carr (91292A111)| $8.00 |
 | **Vibration Isolation Grommet**| 4 | Silicone, 15 Hz tuning | McMaster-Carr (9311K11) | $3.00 |
 | **11.1V 3S LiPo Battery** | 1 | 1500mAh 35C | Turnigy | $15.00 |

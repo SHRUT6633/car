@@ -41,55 +41,39 @@ $$ V_{ADC} = V_{BATT} \times \frac{R_2}{R_1 + R_2} = V_{BATT} \times \frac{2.2}{
 
 The ESP32 polls this voltage at 10 Hz. If $V_{BATT}$ drops below 10.2V (3.4V per cell) for more than 2 seconds (to debounce brief transient dips), the system enters `EMERGENCY_BRAKE` state, halts all actuators, and signals the Raspberry Pi to initiate a safe OS shutdown via UART to prevent SD card corruption.
 
-### 2.2 Dual Isolated Buck Converters
+### 2.2 Dual Isolated Buck Converters & Actuator Power Plane
 
-The most critical design decision in our electrical architecture is the implementation of dual isolated 5V 3A switch-mode buck converters. 
-1. **Converter A (Logic Plane):** Steps down the 11.1V to 5.0V exclusively for the Raspberry Pi 4B, the ESP32-S3 coprocessor, and all 3.3V sensor regulators.
-2. **Converter B (Actuator Plane):** Steps down the 11.1V to 6.0V exclusively for the MG995 steering servo and provides the primary voltage for the TB6612FNG motor driver's VMOT pin (regulated to 9V via a secondary high-power step-down module for predictable speed control).
+The electrical architecture implements dual isolated switch-mode buck converters alongside direct raw battery powering for the L298N motor driver:
+1. **Converter A (Logic Plane):** Steps down the 11.1V LiPo voltage to 5.0V (3A max) exclusively for the Raspberry Pi 4B, ESP32-S3 coprocessor, and all 3.3V sensor rails.
+2. **Converter B (Servo Actuator Plane):** Steps down the 11.1V LiPo voltage to 6.0V (3A max) exclusively for the MG995 steering servo VCC.
+3. **L298N Motor Driver Power:** Connects directly to the fused +11.1V LiPo rail at its 12V high-power input terminal, driving the single Johnson DC planetary gear motor.
 
-Both buck converters operate at a switching frequency of $f_{sw} = 300 \text{ kHz}$. The output voltage ripple $\Delta V_{out}$ is given by:
-$$ \Delta V_{out} = \frac{\Delta I_L}{8 C_{out} f_{sw}} + \Delta I_L \times ESR $$
-With $C_{out} = 220 \mu\text{F}$ and an equivalent series resistance (ESR) of $30 \text{ m}\Omega$, the logic plane maintains a voltage ripple of less than 40mV peak-to-peak, which is well within the Pi 4B's PMIC tolerances.
+Both buck converters operate at $f_{sw} = 300 \text{ kHz}$. Output voltage ripple is maintained below 40mV peak-to-peak via low-ESR $220\mu\text{F}$ output filtering capacitors.
 
-### 2.3 Power Sequencing
-
-When a system contains embedded Linux computers and microcontrollers sharing data buses, power sequencing is vital. Applying power to a sensor before its host microcontroller is ready can cause latch-up states or bus contention. 
-
-Our power sequencing is controlled by a solid-state MOSFET switch network orchestrated by a dedicated tiny supervisor MCU (ATTiny85) powered directly from the battery via an ultra-low quiescent current LDO.
-1. **t = 0 ms:** User toggles main switch.
-2. **t = 10 ms:** Supervisor MCU wakes up.
-3. **t = 50 ms:** Buck Converter A (Logic) is enabled. Raspberry Pi 4B and ESP32-S3 begin booting.
-4. **t = 200 ms:** ESP32-S3 completes boot and holds I2C lines in high-impedance.
-5. **t = 5000 ms:** Raspberry Pi 4B reaches userspace, loads drivers.
-6. **t = 5500 ms:** Raspberry Pi sequentially enables XSHUT pins for ToF sensors (detailed in Section 4).
-7. **t = 15000 ms:** Complete software stack is running. Pi sends "System Ready" heartbeat to ESP32.
-8. **t = 15100 ms:** Supervisor MCU enables Buck Converter B (Actuators). Servo centers itself, TB6612FNG enters standby.
-
-This sequence guarantees no spurious PWM signals reach the actuators while the logic controllers are booting.
-
-### 2.4 Power Distribution Tree
+### 2.3 Power Distribution Tree
 
 ```mermaid
 graph TD
-    BATT[11.1V 3S LiPo 2200mAh] --> FUSE(10A Automotive Blade Fuse)
-    FUSE --> CURR_SENSE[INA219 Current Sensor]
-    CURR_SENSE --> SW[Main Solid State Relay]
+    BATT[11.1V 3S LiPo 2200mAh] --> FUSE[10A Automotive Blade Fuse]
+    FUSE --> SW[Main Mechanical Toggle Switch]
     
-    SW -->|11.1V| BUCK_A[Buck Converter A: 5V / 3A]
-    SW -->|11.1V| BUCK_B[Buck Converter B: 6V / 3A]
-    SW -->|11.1V| BUCK_C[Buck Converter C: 9V / 3A]
+    SW -->|11.1V| BUCK_A[Buck Converter A: 5V / 3A Logic]
+    SW -->|11.1V| BUCK_B[Buck Converter B: 6V / 3A Servo]
+    SW -->|11.1V| L298N_VCC[L298N Motor Driver 12V Power Input]
     
     subgraph Logic Plane
         BUCK_A --> PI[Raspberry Pi 4B 5V IN]
-        PI -->|3.3V LDO| SENSORS[VL53L1X, VL53L0X, MPU6050]
-        PI -->|3.3V LDO| CAM[Pi Camera v2]
+        PI -->|3.3V Rail| SENSORS[VL53L1X, VL53L0X, MPU6050]
+        PI -->|3.3V Rail| CAM[Pi Camera v2]
         PI -->|USB 5V| ESP32[ESP32-S3 Coprocessor]
     end
     
     subgraph Actuator Plane
-        BUCK_B --> SERVO[MG995 Steering Servo]
-        BUCK_C --> VMOT[TB6612FNG Motor Driver VMOT]
-        VMOT --> DC[Johnson DC Planetary Gear Motor]
+        BUCK_B --> SERVO[MG995 Steering Servo VCC]
+        L298N_VCC --> L298N[L298N Dual H-Bridge Driver Module]
+        L298N --> DC[Johnson DC Planetary Gear Motor]
+        ESP32 -->|GPIO 18 PWM| SERVO
+        ESP32 -->|GPIO 19 ENA, GPIO 20 IN1, GPIO 21 IN2| L298N
     end
     
     %% Ground paths
@@ -97,10 +81,9 @@ graph TD
     ESP32 -.-> GND_STAR
     SENSORS -.-> GND_STAR
     SERVO -.-> GND_STAR
-    VMOT -.-> GND_STAR
+    L298N -.-> GND_STAR
     BUCK_A -.-> GND_STAR
     BUCK_B -.-> GND_STAR
-    BUCK_C -.-> GND_STAR
     BATT -.-> GND_STAR
 ```
 
@@ -136,7 +119,7 @@ Given that a WRO Future Engineers match lasts less than 5 minutes, our worst-cas
 
 ### 2.6 Thermal Management
 
-The dense packaging of the WRO_4WS_Pro_2026 necessitates careful thermal analysis. The primary heat sources are the Raspberry Pi 4B SoC (BCM2711) and the TB6612FNG motor driver.
+The dense packaging of the WRO_4WS_Pro_2026 necessitates careful thermal analysis. The primary heat sources are the Raspberry Pi 4B SoC (BCM2711) and the L298N motor driver.
 
 **Pi 4B Thermals:**
 Operating 4 cores at 1.5 GHz while processing 30 FPS OpenCV arrays generates substantial heat. Without cooling, the die temperature ($T_j$) rapidly exceeds the 80°C throttling threshold. We modeled the thermal resistance ($\theta_{JA}$):
@@ -146,7 +129,7 @@ $$ T_{j, cooled} = 25 + 6 \times 4 = 49^\circ\text{C} $$
 This ensures maximum clock speed without thermal throttling during the entire run.
 
 **Motor Driver Thermals:**
-The TB6612FNG has an internal $R_{DS(on)}$ of approximately $0.5 \Omega$. At a continuous load of 0.45A, the power dissipation is:
+The L298N has an internal $R_{DS(on)}$ of approximately $0.5 \Omega$. At a continuous load of 0.45A, the power dissipation is:
 $$ P_d = I^2 R = (0.45)^2 \times 0.5 = 0.10 \text{ W} $$
 This is easily dissipated by the IC package. However, during a stall (3.5A), $P_d = 6.125 \text{ W}$, which would quickly trigger the internal thermal shutdown ($170^\circ\text{C}$). To mitigate this, our Layer 10 control software monitors the commanded PWM vs. the encoder velocity. If velocity remains zero for >500ms while PWM > 50%, a stall is detected, and the motor is cut off to prevent thermal runaway.
 

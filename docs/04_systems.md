@@ -93,7 +93,7 @@ End-to-end pipeline latency from real-world event to motor reaction is paramount
 4. **Layer 7-9 Planning & Kinematics:** ~1.0 ms
 5. **UART Serial Transfer to ESP32:** ~0.1 ms
 6. **ESP32 PWM Output Update:** ~0.5 ms
-7. **Motor Driver (TB6612FNG) & Inductive Delay:** ~3.0 ms
+7. **Motor Driver (L298N) & Inductive Delay:** ~3.0 ms
 
 **Total End-to-End Latency:** ~28.6 ms. Since this is under the 33.3ms vision frame time (at 30fps), the robot strictly processes every single frame synchronously without building an input lag queue.
 
