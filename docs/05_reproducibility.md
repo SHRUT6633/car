@@ -109,13 +109,13 @@ graph TD
         RPI -->|GPIO 22| XSHUT_F[VL53L1X Front XSHUT]
         RPI -->|GPIO 17| XSHUT_L[VL53L0X Left XSHUT]
         RPI -->|GPIO 27| XSHUT_R[VL53L0X Right XSHUT]
-        RPI -->|GPIO 16| SW2[Race Start Button - Active LOW]
-        RPI -->|GPIO 5| LED1_P[LED1: System ON - Green]
-        RPI -->|GPIO 6| LED2_P[LED2: Sensors OK - Green]
-        RPI -->|GPIO 13| LED3_P[LED3: Camera OK - Green]
-        RPI -->|GPIO 19| LED4_P[LED4: Serial OK - Green]
-        RPI -->|GPIO 26| LED5_P[LED5: Race Active - Green/Red]
-        RPI -->|USB ttyUSB0| UART_LINK[USB-to-UART Serial Link @ 115200]
+        RPI -->|GPIO 16| SW2["Race Start Button - Active LOW"]
+        RPI -->|GPIO 5| LED1_P["LED1: System ON - Green"]
+        RPI -->|GPIO 6| LED2_P["LED2: Sensors OK - Green"]
+        RPI -->|GPIO 13| LED3_P["LED3: Camera OK - Green"]
+        RPI -->|GPIO 19| LED4_P["LED4: Serial OK - Green"]
+        RPI -->|GPIO 26| LED5_P["LED5: Race Active - Green/Red"]
+        RPI -->|USB ttyUSB0| UART_LINK["USB-to-UART Serial Link @ 115200"]
     end
 
     subgraph ESP32-S3 GPIO Pinout
@@ -124,19 +124,19 @@ graph TD
         ESP -->|GPIO 19 / PWM| L298N_ENA[L298N ENA Pin]
         ESP -->|GPIO 20| L298N_IN1[L298N IN1 Pin]
         ESP -->|GPIO 21| L298N_IN2[L298N IN2 Pin]
-        ESP -->|GPIO 22| TB_STBY[STBY / Enable Monitor]
-        ESP -->|GPIO 4| LED1_E[LED1: ESP Boot OK - Green]
-        ESP -->|GPIO 5| LED2_E[LED2: Serial Link - Green]
-        ESP -->|GPIO 15| LED3_E[LED3: Servo Active - Green]
-        ESP -->|GPIO 16| LED4_E[LED4: Motor Active - Green]
-        ESP -->|GPIO 17| LED5_E[LED5: System Fault - Red]
+        ESP -->|GPIO 22| TB_STBY["STBY / Enable Monitor"]
+        ESP -->|GPIO 4| LED1_E["LED1: ESP Boot OK - Green"]
+        ESP -->|GPIO 5| LED2_E["LED2: Serial Link - Green"]
+        ESP -->|GPIO 15| LED3_E["LED3: Servo Active - Green"]
+        ESP -->|GPIO 16| LED4_E["LED4: Motor Active - Green"]
+        ESP -->|GPIO 17| LED5_E["LED5: System Fault - Red"]
     end
 
     subgraph I2C Sensors
-        I2C_BUS --> MPU[MPU6050 IMU @ 0x68]
-        I2C_BUS --> VL_F[VL53L1X Front @ 0x30]
-        I2C_BUS --> VL_L[VL53L0X Left @ 0x31]
-        I2C_BUS --> VL_R[VL53L0X Right @ 0x32]
+        I2C_BUS --> MPU["MPU6050 IMU @ 0x68"]
+        I2C_BUS --> VL_F["VL53L1X Front @ 0x30"]
+        I2C_BUS --> VL_L["VL53L0X Left @ 0x31"]
+        I2C_BUS --> VL_R["VL53L0X Right @ 0x32"]
     end
 ```
 
