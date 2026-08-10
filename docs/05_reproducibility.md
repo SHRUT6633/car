@@ -58,9 +58,9 @@ World_robot_olympiad/
 
 ---
 
-## 3. Bill of Materials (BOM) & Parts Sourcing Guide
+## 3. Comprehensive Bill of Materials (BOM) & Parts Sourcing Guide
 
-Below is the complete physical component manifest required to replicate the WRO_4WS_Pro_2026:
+Below is the complete physical component manifest required to replicate the WRO_4WS_Pro_2026. This includes exact part numbers, recommended supplier links, and quantities:
 
 | Component Category | Part Name / Specification | Vendor / Source | Qty | Purpose / Specification Notes |
 |---|---|---|---|---|
@@ -72,7 +72,7 @@ Below is the complete physical component manifest required to replicate the WRO_
 | **Distance Sensors (Front)** | VL53L1X Time-of-Flight Sensor | STMicroelectronics | 1 | I2C address `0x30`, XSHUT control on GPIO 22, range up to 4m |
 | **Distance Sensors (Sides)**| VL53L0X Time-of-Flight Sensor | STMicroelectronics | 2 | Left (`0x31`, XSHUT GPIO 17), Right (`0x32`, XSHUT GPIO 27) |
 | **Inertial Sensor** | MPU6050 6-DoF Gyro + Accelerometer | InvenSense | 1 | I2C address `0x68`, ±250°/s gyro, ±2g accel, 1 kHz internal |
-| **Camera** | Raspberry Pi Camera Module v2 | Raspberry Pi Foundation | 1 | Sony IMX219 8MP, 640×480 @ 30 FPS, CSI-2 ribbon cable |
+| **Camera** | Raspberry Pi Camera Module v2 | Raspberry Pi Foundation | 1 | Sony IMX219 8MP, 640×480 @ 30 FPS, focal_length_px=600.0 |
 | **Power Storage** | 11.1V 3S LiPo Battery (2200 mAh, 25C) | Tattu / GensAce | 1 | Main vehicle power source with XT60 connector |
 | **Logic Regulator** | 5V 3A Synchronous Buck Converter | LM2596 / MP2307 | 1 | Dedicated to Raspberry Pi 4B, ESP32-S3, and sensors |
 | **Actuator Regulator** | 6V 3A Synchronous Buck Converter | LM2596 / MP2307 | 1 | Dedicated to MG995 servo to isolate inductive noise |
@@ -91,53 +91,59 @@ The electrical interconnect between the Raspberry Pi 4B, ESP32-S3, Sensors, Moto
 
 ```mermaid
 graph TD
-    subgraph Power Plane
-        BATT[11.1V 3S LiPo Battery] --> FUSE[10A Automotive Blade Fuse]
-        FUSE --> SW[Main Toggle Switch]
-        SW -->|11.1V| BUCK_LOGIC[5V / 3A Buck Converter A]
-        SW -->|11.1V| BUCK_ACT[6V / 3A Buck Converter B]
-        SW -->|11.1V| L298N_12V[L298N Motor Driver 12V Terminal]
-        BUCK_LOGIC --> RPI[Raspberry Pi 4B]
-        BUCK_LOGIC --> ESP[ESP32-S3 DevKit]
-        BUCK_LOGIC --> SENSORS[Sensors Bus 3.3V]
-        BUCK_ACT --> SERVO[MG995 Servo VCC]
+    %% Battery and Switchgear
+    BATT["11.1V 3S LiPo 2200mAh"] -->|VCC Positive| FUSE["10A Automotive Blade Fuse"]
+    FUSE --> SW["Main Mechanical Toggle Switch"]
+    
+    %% Switched Power Split
+    SW -->|11.1V Fused VCC| BUCK_A["Buck Converter A: 5V / 3A (Logic)"]
+    SW -->|11.1V Fused VCC| BUCK_B["Buck Converter B: 6V / 3A (Servo)"]
+    SW -->|11.1V Fused VCC| L298N_VMS["L298N Driver VMS Terminal (+12V IN)"]
+    
+    %% Logic Plane
+    subgraph Logic_Plane ["Logic Plane (Isolated)"]
+        BUCK_A -->|5.0V VCC| RPI["Raspberry Pi 4B 5V IN"]
+        BUCK_A -->|5.0V VCC| ESP["ESP32-S3 DevKit 5V IN"]
+        
+        RPI --> RPI_3V3["3.3V Output Rail"]
+        RPI --> RPI_CSI["CSI Ribbon"]
+        
+        RPI_3V3 --> SENSORS["VL53L1X, 2x VL53L0X, MPU6050"]
+        RPI_CSI --> CAM["Raspberry Pi Camera v2"]
+    end
+    
+    %% ESP32 Output Pins
+    ESP --> GPIO18["GPIO 18 / PWM"]
+    ESP --> GPIO19["GPIO 19 / PWM"]
+    ESP --> GPIO20["GPIO 20"]
+    ESP --> GPIO21["GPIO 21"]
+    
+    %% Actuator Plane
+    subgraph Actuator_Plane ["Actuator Plane (Isolated)"]
+        BUCK_B -->|6.0V VCC| SERVO["MG995 Steering Servo VCC"]
+        L298N_VMS --> L298N_MOD["L298N Dual H-Bridge Module"]
+        L298N_MOD -->|OUT1 / OUT2| MOTOR["Johnson DC Planetary Gear Motor"]
     end
 
-    subgraph Raspberry Pi 4B GPIO Pinout
-        RPI -->|GPIO 2 / SDA| I2C_BUS[I2C Bus 1]
-        RPI -->|GPIO 3 / SCL| I2C_BUS
-        RPI -->|GPIO 22| XSHUT_F[VL53L1X Front XSHUT]
-        RPI -->|GPIO 17| XSHUT_L[VL53L0X Left XSHUT]
-        RPI -->|GPIO 27| XSHUT_R[VL53L0X Right XSHUT]
-        RPI -->|GPIO 16| SW2["Race Start Button - Active LOW"]
-        RPI -->|GPIO 5| LED1_P["LED1: System ON - Green"]
-        RPI -->|GPIO 6| LED2_P["LED2: Sensors OK - Green"]
-        RPI -->|GPIO 13| LED3_P["LED3: Camera OK - Green"]
-        RPI -->|GPIO 19| LED4_P["LED4: Serial OK - Green"]
-        RPI -->|GPIO 26| LED5_P["LED5: Race Active - Green/Red"]
-        RPI -->|USB ttyUSB0| UART_LINK["USB-to-UART Serial Link @ 115200"]
-    end
-
-    subgraph ESP32-S3 GPIO Pinout
-        UART_LINK --> ESP
-        ESP -->|GPIO 18 / PWM| SERVO_SIG[MG995 Servo Signal]
-        ESP -->|GPIO 19 / PWM| L298N_ENA[L298N ENA Pin]
-        ESP -->|GPIO 20| L298N_IN1[L298N IN1 Pin]
-        ESP -->|GPIO 21| L298N_IN2[L298N IN2 Pin]
-        ESP -->|GPIO 22| TB_STBY["STBY / Enable Monitor"]
-        ESP -->|GPIO 4| LED1_E["LED1: ESP Boot OK - Green"]
-        ESP -->|GPIO 5| LED2_E["LED2: Serial Link - Green"]
-        ESP -->|GPIO 15| LED3_E["LED3: Servo Active - Green"]
-        ESP -->|GPIO 16| LED4_E["LED4: Motor Active - Green"]
-        ESP -->|GPIO 17| LED5_E["LED5: System Fault - Red"]
-    end
-
-    subgraph I2C Sensors
-        I2C_BUS --> MPU["MPU6050 IMU @ 0x68"]
-        I2C_BUS --> VL_F["VL53L1X Front @ 0x30"]
-        I2C_BUS --> VL_L["VL53L0X Left @ 0x31"]
-        I2C_BUS --> VL_R["VL53L0X Right @ 0x32"]
-    end
+    %% Signal Connections
+    GPIO18 --> SERVO
+    GPIO19 --> L298N_ENA["L298N ENA Pin"]
+    GPIO20 --> L298N_IN1["L298N IN1 Pin"]
+    GPIO21 --> L298N_IN2["L298N IN2 Pin"]
+    
+    L298N_ENA --> L298N_MOD
+    L298N_IN1 --> L298N_MOD
+    L298N_IN2 --> L298N_MOD
+    
+    %% Star Ground Hub
+    RPI --- STAR((Star Ground Hub))
+    BUCK_A --- STAR
+    ESP --- STAR
+    SENSORS --- STAR
+    BUCK_B --- STAR
+    SERVO --- STAR
+    L298N_MOD --- STAR
+    BATT ---|Negative Terminal| STAR
 ```
 
 ### Comprehensive Pin Allocation Table
@@ -171,7 +177,7 @@ graph TD
 
 ## 5. Mechanical & Hardware Assembly Guide
 
-Follow this sequential 14-step assembly workflow to build the physical robot:
+Follow this sequential step-by-step assembly workflow to build the physical robot:
 
 ### Step 1: 3D Printing the Structural Frame
 Print the main chassis tub, upper deck, battery tray, and sensor brackets using a tuned FDM 3D printer:
@@ -180,10 +186,11 @@ Print the main chassis tub, upper deck, battery tray, and sensor brackets using 
 - **Infill Density & Pattern:** 30% Gyroid infill
 - **Perimeter Walls:** 4 solid wall loops (1.6 mm total thickness)
 - **Temperatures:** 240°C Nozzle, 80°C Heated Bed
+- **Orientation:** Ensure parts are oriented flat to minimize supports.
 - **Print Bed Surface:** PEI sheet with glue stick for adhesion
 
 ### Step 2: Threaded Insert Installation
-Using a soldering iron set to 230°C, press M3 brass heat-set inserts into all designated mounting bosses on the 3D printed chassis plate.
+Using a soldering iron set to 230°C, press M3 brass heat-set inserts into all designated mounting bosses on the 3D printed chassis plate. Ensure they are flush and straight.
 
 ### Step 3: Double-Wishbone Suspension Assembly
 Assemble the front and rear suspension arms using M3 stainless steel hardware, nylon locknuts, and precision ball joints. Verify smooth movement without mechanical binding.
@@ -195,10 +202,10 @@ Install the central bellcrank mechanism. Connect the MG995 servo horn to the cen
 Secure the single Johnson DC planetary gear motor (20:1 reduction) into the rear drivetrain cage using M3 machine screws. Connect the motor shaft to the front and rear differentials via rigid drive couplers.
 
 ### Step 6: Wheels and Tires Assembly
-Mount the 60mm diameter rubber competition tires onto the wheel hubs. Secure hubs to axle shafts using set-screws. Verify total track width is exactly 130 mm and wheelbase is 160 mm.
+Mount the 60mm diameter rubber competition tires onto the wheel hubs. Secure hubs to axle shafts using set-screws. Verify total track width is exactly 130 mm and wheelbase is 160 mm. The length should be 230mm, width 160mm. 
 
 ### Step 7: Power Subsystem Wiring
-Mount the 11.1V 3S LiPo battery tray in the center of the chassis to achieve a 50:50 front-to-rear weight balance. Connect the positive terminal of the battery directly to the inline 10A blade fuse. Wire the output of the 10A fuse through the main mechanical toggle switch, splitting to:
+Mount the 11.1V 3S LiPo battery tray in the center of the chassis to achieve a 50:50 front-to-rear weight balance, height 35mm CG. Connect the positive terminal of the battery directly to the inline 10A blade fuse. Wire the output of the 10A fuse through the main mechanical toggle switch, splitting to:
 - Buck Converter A (5V 3A logic output to Raspberry Pi 4B pins 2 & 6 and ESP32-S3).
 - Buck Converter B (6V 3A actuator output exclusively to MG995 servo VCC red wire and ground).
 - L298N Motor Driver 12V high-power terminal (+11.1V fused power).
@@ -208,8 +215,8 @@ Mount the L298N dual H-bridge motor driver module near the Johnson DC motor. Con
 
 ### Step 9: Sensor Array Placement & Mounting
 - **Front VL53L1X:** Mount on the front bumper centerline facing directly forward. Connect XSHUT to Pi GPIO 22.
-- **Left VL53L0X:** Mount on the left chassis rail facing 90° sideways. Connect XSHUT to Pi GPIO 17.
-- **Right VL53L0X:** Mount on the right chassis rail facing 90° sideways. Connect XSHUT to Pi GPIO 27.
+- **Left VL53L0X:** Mount on the left chassis rail facing 90° sideways, 50mm side sensor recess. Connect XSHUT to Pi GPIO 17.
+- **Right VL53L0X:** Mount on the right chassis rail facing 90° sideways, 50mm side sensor recess. Connect XSHUT to Pi GPIO 27.
 - **MPU6050 IMU:** Mount on the geometric center of gravity on an anti-vibration rubber plinth. Connect to I2C Bus 1.
 
 ### Step 10: Camera Module Installation
@@ -219,7 +226,7 @@ Mount the Raspberry Pi Camera v2 on the front top arch elevated 120 mm above the
 Install the 5 status LEDs onto the top deck. Wire Pi LEDs to GPIOs 5, 6, 13, 19, 26 with 220Ω current-limiting resistors. Wire ESP32 status LEDs to GPIOs 4, 5, 15, 16, 17 with 220Ω resistors.
 
 ### Step 12: Race Start Button Wiring
-Mount Switch 2 (momentary push button) on the top rear panel. Wire one side to Pi GPIO 16 and the other side to common Ground.
+Mount Switch 2 (momentary push button) on the top rear panel. Wire one side to Pi GPIO 16 and the other side to common Ground. Active LOW.
 
 ### Step 13: High-Level Compute & Microcontroller Installation
 Secure the Raspberry Pi 4B and ESP32-S3 DevKit onto the upper chassis deck using M3 nylon standoffs. Connect the Pi USB port to the ESP32 USB-UART port using a short 15cm shielded USB cable.
@@ -267,7 +274,7 @@ source venv/bin/activate
 ```
 
 ### Step 3: Install Required Dependencies
-Install all required Python libraries via `pip`:
+Install all required Python libraries via `pip`. Ensure `requirements.txt` verification checks pass:
 ```bash
 pip install --upgrade pip
 pip install -r requirements.txt
@@ -347,8 +354,8 @@ Before operating the vehicle on the competition mat, execute these calibration s
    ```json
    "kinematics_4ws": {
      "servo_center_pwm_us": 1500,
-     "servo_min_pwm_us": 900,
-     "servo_max_pwm_us": 2100
+     "servo_min_pwm_us": 1000,
+     "servo_max_pwm_us": 2000
    }
    ```
 4. Save the file and re-verify mechanical zero.
@@ -359,12 +366,12 @@ Before operating the vehicle on the competition mat, execute these calibration s
    ```bash
    python utils/calibrate_imu.py
    ```
-3. The script collects 200 static samples over 5 seconds and calculates the gyroscope $Z$-axis bias offset ($b_{gyro}$).
+3. The script collects static samples for a 3-second static boot offset and calculates the gyroscope $Z$-axis bias offset ($b_{gyro}$).
 4. The calculated offsets are automatically saved to `config/robot_config.json`.
 
 ### Procedure C: HSV Vision Color Calibration
 1. Place red, green, and magenta sample pillars on the competition mat under local venue lighting.
-2. Launch the interactive OpenCV HSV threshold tuner:
+2. Launch the interactive OpenCV HSV threshold tuner GUI:
    ```bash
    python utils/calibrate_hsv.py
    ```
@@ -400,70 +407,24 @@ python test_sensors.py
 
 ---
 
-## 9. On-Site Match-Day Adaptability & Surprise Rules Guide
+## 9. First-Boot Procedure Flowchart
 
-Under Rule 6 of WRO Future Engineers 2026, judges introduce surprise rules on competition day (such as reversing driving direction or swapping pillar color meanings).
-
-Our system handles these changes instantly using `surprise.py` without recompiling code:
-
-### Inspecting Current Surprise Rules
-```bash
-python surprise.py --show
+```mermaid
+flowchart TD
+    A["Power Switch ON"] --> B["ESP32 Boots (1.2s)"]
+    B --> C["ESP32 enters WAITING_FOR_PI"]
+    C --> D["Watchdog Disabled, Servo @ 1500us"]
+    A --> E["Pi 4B Boots (15s)"]
+    E --> F["Launch main.py"]
+    F --> G["Send CMD_CALIBRATE = 0x03"]
+    G --> H["ESP32 Enables Watchdog"]
+    H --> I["Transition to RUNNING state"]
+    I --> J["Robot Ready for Operation"]
 ```
-
-### Setting Direction to Clockwise (CW) & Reversing Sign Logic
-```bash
-python surprise.py --direction CW --sign REVERSED
-```
-
-### Enabling Starting from Parking Lot
-```bash
-python surprise.py --start-from-parking true
-```
-
-### Command CLI Options Reference
-
-| CLI Flag | Accepted Values | Default | Description |
-|---|---|---|---|
-| `--show` | N/A | N/A | Prints current surprise rule configuration |
-| `--direction` | `CW`, `CCW` | `CCW` | Sets track driving direction |
-| `--sign` | `NORMAL`, `REVERSED` | `NORMAL` | `NORMAL`: Red=Left, Green=Right. `REVERSED`: Swapped |
-| `--parking-side` | `LEFT`, `RIGHT`, `DYNAMIC` | `DYNAMIC` | Parking side selection mode |
-| `--start-from-parking` | `true`, `false` | `true` | Set to `true` if car starts inside parking lot (+7 pts) |
-| `--narrow-mode` | `true`, `false` | `false` | Enables higher centering gains for narrow tracks |
-| `--stop-duration` | Seconds (float) | `3.0` | Pause duration on blue floor marker |
 
 ---
 
 ## 10. Comprehensive Troubleshooting Guide
-
-```mermaid
-flowchart TD
-    A[Robot Issue Observed] --> B{What is the symptom?}
-    
-    B -->|LED4 OFF / Serial Error| C[Check USB Serial Cable]
-    C --> C1[ls /dev/ttyUSB*]
-    C1 -->|Not Found| C2[Re-plug USB cable / Flash ESP32 firmware]
-    C1 -->|Permission Denied| C3[sudo usermod -a -G dialout $USER]
-
-    B -->|LED2 OFF / Sensor Error| D[Check I2C Bus & Wiring]
-    D --> D1[sudo i2cdetect -y 1]
-    D1 -->|Missing 0x30/31/32| D2[Verify XSHUT GPIO Wiring 22/17/27]
-    D1 -->|Missing 0x68| D3[Check 3.3V Power & MPU6050 Soldering]
-
-    B -->|LED3 OFF / Vision Error| E[Check Pi Camera]
-    E --> E1[vcgencmd get_camera]
-    E1 -->|supported=0| E2[Enable camera in raspi-config]
-    E1 -->|detected=0| E3[Reseat CSI Ribbon Cable]
-
-    B -->|Motor Not Spinning| F[Check Motor Driver & Battery]
-    F --> F1[Measure LiPo Voltage >= 11.1V]
-    F1 -->|Voltage Low| F2[Recharge Battery]
-    F1 -->|Voltage OK| F3[Verify L298N STBY Pin is HIGH on GPIO 22]
-
-    B -->|Vehicle Oscillates| G[Tune Stanley Gains]
-    G --> G1[Reduce stanley_k in robot_config.json from 0.75 to 0.50]
-```
 
 ### Detailed Symptom & Solution Matrix
 
@@ -476,12 +437,13 @@ flowchart TD
 | **Servo Jitters or Drops** | Servo drawing peak current from logic buck converter | 1. Verify servo is wired to isolated Buck Converter B (6V).<br>2. Ensure logic and actuator grounds are connected. |
 | **Yaw Drift Accumulated** | IMU calibrated while stationary table was vibrating | 1. Re-run `python utils/calibrate_imu.py` on a stationary surface.<br>2. Ensure UKF yaw reset is enabled in `layer3_sensor_fusion.py`. |
 | **Pillars Not Detected** | Room lighting changed HSV response | 1. Launch `python utils/calibrate_hsv.py`.<br>2. Adjust HSV sliders for local lighting and save. |
+| **Thread Deadlock** | Concurrency issues in sensor reading | 1. Verify Mutex locks in `layer1_sensors.py`. |
 
 ---
 
 ## 11. Pre-Race Competition Checklist
 
-Perform this 6-step checklist 5 minutes before every official match round:
+Perform this checklist 5 minutes before every official match round:
 
 1. [ ] **Battery Check:** Verify LiPo pack voltage is $\ge 12.4\text{V}$ using a LiPo checker.
 2. [ ] **Surprise Rules Config:** Obtain match rules from judges and run `python surprise.py` with specified flags.
@@ -491,3 +453,4 @@ Perform this 6-step checklist 5 minutes before every official match round:
 6. [ ] **Press Switch 2:** Press Race Start button (Switch 2). Verify LED 5 begins blinking GREEN at 2 Hz. Release vehicle.
 
 ---
+
