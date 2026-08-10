@@ -146,7 +146,7 @@ Weightings: Performance (0.4), Reliability (0.3), Ease of Integration (0.2), Cos
 | Extended Kalman Filter (EKF)| 4 | 3 | 2 | 3 | 3.2 |
 | **Unscented Kalman Filter (UKF)**| **5** | **3** | **3** | **5** | **4.0** |
 
-**Rationale:** The UKF ($[x, y, \theta, v, \omega, \text{gyro\_bias\_z}]$, $\alpha=1e-3, \beta=2.0, \kappa=0.0$) handles the highly non-linear trigonometric relationships of our 4WS kinematics better than the EKF without calculating Jacobians.
+**Rationale:** The UKF state $[x, y, \theta, v, \omega, b_{gyro}]^T$ ($\alpha=10^{-3}, \beta=2.0, \kappa=0.0$) handles the highly non-linear trigonometric relationships of our 4WS kinematics better than the EKF without calculating Jacobians.
 
 ---
 

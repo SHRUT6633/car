@@ -10,7 +10,7 @@ Conversely, the ESP32-S3 runs C/Arduino code built via the ESP-IDF framework. It
 
 ```mermaid
 graph TD
-    subgraph High-Level Cognitive Engine
+    subgraph HCE ["High-Level Cognitive Engine"]
         RPI[Raspberry Pi 4B<br>Python 3.11]
         PERC[Perception / OpenCV Pipeline]
         UKF[6-DoF UKF Sensor Fusion]
@@ -27,7 +27,7 @@ graph TD
         PLAN --> CTRL
     end
 
-    subgraph Low-Level Deterministic Controller
+    subgraph LDC ["Low-Level Deterministic Controller"]
         ESP[ESP32-S3<br>C/Arduino]
         PWM[Hardware PWM Generators]
         WDG[200ms Watchdog Timer]

@@ -172,16 +172,16 @@ We have four primary I2C slaves. However, the factory default address for all th
 
 ```mermaid
 graph LR
-    PI[Raspberry Pi 4B (Master)] -->|I2C SDA GPIO2| BUS
+    PI["Raspberry Pi 4B Master"] -->|I2C SDA GPIO2| BUS
     PI -->|I2C SCL GPIO3| BUS
     PI -->|XSHUT GPIO22| S1
     PI -->|XSHUT GPIO17| S2
     PI -->|XSHUT GPIO27| S3
     
-    BUS --> S1[VL53L1X Front<br>New Addr: 0x30]
-    BUS --> S2[VL53L0X Left<br>New Addr: 0x31]
-    BUS --> S3[VL53L0X Right<br>New Addr: 0x32]
-    BUS --> S4[MPU6050 IMU<br>Fixed Addr: 0x68]
+    BUS --> S1["VL53L1X Front<br>New Addr: 0x30"]
+    BUS --> S2["VL53L0X Left<br>New Addr: 0x31"]
+    BUS --> S3["VL53L0X Right<br>New Addr: 0x32"]
+    BUS --> S4["MPU6050 IMU<br>Fixed Addr: 0x68"]
 ```
 
 ### 4.2 Complete Electrical Analysis: Capacitance and Pull-ups
@@ -370,7 +370,7 @@ We implement a multi-threaded, non-blocking architecture. The sensor polling run
 
 ```mermaid
 flowchart TD
-    subgraph Layer 1: Hardware Acquisition (100 Hz Thread)
+    subgraph L1 ["Layer 1: Hardware Acquisition (100 Hz Thread)"]
         I2C_FRONT[VL53L1X Front] -->|I2C 0x30| THREAD_POLL
         I2C_LEFT[VL53L0X Left] -->|I2C 0x31| THREAD_POLL
         I2C_RIGHT[VL53L0X Right] -->|I2C 0x32| THREAD_POLL
@@ -378,19 +378,19 @@ flowchart TD
         CSI_CAM[Pi Camera] -->|DMA| THREAD_CAM
     end
 
-    subgraph Layer 2: Signal Conditioning
+    subgraph L2 ["Layer 2: Signal Conditioning"]
         THREAD_POLL --> IMU_CALIB[Gyro Bias Subtraction]
         THREAD_POLL --> TOF_FILTER[Median Filter / Offset Correction]
         THREAD_CAM --> HSV_THRESH[HSV Color Thresholding]
     end
 
-    subgraph Layer 3: Unscented Kalman Filter
+    subgraph L3 ["Layer 3: Unscented Kalman Filter"]
         IMU_CALIB -->|w_z| UKF_PREDICT[UKF Predict Step]
         TOF_FILTER -->|d_front, d_left, d_right| UKF_UPDATE[UKF Update Step]
         HSV_THRESH -->|Pillar Dist & Angle| UKF_UPDATE
     end
 
-    UKF_UPDATE --> STATE_VECTOR[State Vector: x, y, theta, v, w]
+    UKF_UPDATE --> STATE_VECTOR["State Vector: x, y, theta, v, w"]
     STATE_VECTOR -->|100 Hz| STANLEY[Stanley Controller]
 ```
 
