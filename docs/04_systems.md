@@ -17,6 +17,29 @@ These budgets acted as hard limits during the trade-off analysis phases, forcing
 Through iterative prototyping and rigorous testing, we verified that the assembled subsystems performed harmoniously and met the predefined specifications.
 This document details the critical engineering decisions made during the development process, presenting the quantitative data and logical reasoning that guided our path.
 
+### System Architecture Overview
+
+```mermaid
+graph LR
+    subgraph Hardware ["Physical Hardware"]
+        BAT["3S LiPo 11.1V"]
+        FUSE["10A Blade Fuse"]
+        BUCK1["Buck 5V/3A"]
+        BUCK2["Buck 6V/3A"]
+        PI["Raspberry Pi 4B"]
+        ESP["ESP32-S3"]
+        SERVO["MG995 Servo"]
+        MOTOR["Johnson DC Motor"]
+        L298["L298N Driver"]
+    end
+    BAT --> FUSE --> BUCK1 --> PI
+    FUSE --> BUCK2 --> SERVO
+    FUSE --> L298 --> MOTOR
+    PI -->|"USB UART"| ESP
+    ESP -->|"GPIO 18 PWM"| SERVO
+    ESP -->|"GPIO 19-21"| L298
+```
+
 ## 2. System Constraints Analysis
 
 The physical and operational constraints imposed by the WRO Future Engineers rules dictate the absolute boundaries within which our robot must operate. We conducted a comprehensive analysis of these constraints to establish working budgets for critical system parameters. Our methodology involved treating each constraint as an independent variable and performing sensitivity analysis to determine the allowable operational margin before failure or disqualification occurs. 
@@ -161,6 +184,27 @@ The centralized FSM evaluates this updated fused state against the mission objec
 
 These discrete target values are mathematically packed into a rigid 10-byte binary packet, protected against corruption by a CRC8 polynomial (0x07), and transmitted asynchronously via UART at 115200 baud to the ESP32. Upon successful CRC verification, the ESP32 immediately updates the hardware LEDC PWM registers. This alters the duty cycle sent to the MG995 servo and the L298N motor driver, causing the mechanical systems to respond. Extensive oscilloscopic profiling demonstrates that this entire signal chain, from sensor observation to PWM state change, completes deterministically in under 15ms.
 
+```mermaid
+gantt
+    title End-to-End Control Pipeline Timing
+    dateFormat X
+    axisFormat %L ms
+    section Sensor
+    I2C Read : 0, 1200
+    section Fusion
+    UKF Update : 1200, 2700
+    section Perception
+    OpenCV Pipeline : 1200, 4000
+    section Decision
+    FSM Logic : 4000, 4400
+    Path Planning : 4400, 5200
+    section Control
+    Stanley Controller : 5200, 5500
+    Serial TX : 5500, 5700
+    section Actuator
+    ESP32 Parse and PWM : 5700, 6500
+```
+
 ## 6. Risk & Mitigation Registry
 
 A formal Failure Mode and Effects Analysis (FMEA) was conducted early in the design cycle to systematically identify potential failure points within the system and implement proactive mitigation strategies. We evaluated risks based on their Severity (impact on mission success or hardware survival), Occurrence (statistical likelihood of happening), and Detection (ability of the system to identify the failure before catastrophic consequences occur). We calculated a Risk Priority Number (RPN) for each scenario by multiplying these three factors, scaling from 1 to 10 for each parameter. This structured, quantitative approach ensures that our engineering efforts are ruthlessly focused on the most critical systemic vulnerabilities.
@@ -172,6 +216,25 @@ Motor stalls present another severe hardware concern. If the robot becomes wedge
 Serial UART corruption caused by EMI (Electromagnetic Interference) from the brushed DC motor was mitigated by implementing a strict 10-byte packet structure. This structure includes a preamble and is definitively protected by a CRC8 checksum (polynomial 0x07). This ensures that malformed or bit-flipped commands are simply discarded by the ESP32 parser, preventing erratic, uncontrolled actuation.
 
 Brownout conditions due to a low 3S LiPo battery (falling below 10.5V) risk corrupting the Raspberry Pi SD card during sudden power loss. We instituted a voltage divider circuit feeding into the ESP32 ADC to monitor battery health. If the voltage drops below a critical threshold, a safe shutdown command is transmitted to the Pi, and the system halts all motor actuation.
+
+```mermaid
+quadrantChart
+    title Risk Priority Matrix
+    x-axis Low Occurrence --> High Occurrence
+    y-axis Low Severity --> High Severity
+    quadrant-1 Critical Risk
+    quadrant-2 Monitor Closely
+    quadrant-3 Low Priority
+    quadrant-4 Mitigate Proactively
+    Battery Brownout: [0.3, 0.9]
+    I2C Bus Lockup: [0.4, 0.8]
+    Camera Frame Drop: [0.2, 0.85]
+    UART Corruption: [0.3, 0.7]
+    Wheel Slip: [0.5, 0.5]
+    Servo Jitter: [0.3, 0.4]
+    Gyro Drift: [0.6, 0.6]
+    Motor Stall: [0.15, 0.95]
+```
 
 | Risk Category | Severity | Occurrence | Detection | RPN | Mitigation Strategy |
 |---|---|---|---|---|---|
