@@ -183,18 +183,18 @@ $$ \text{PWM}(\mu s) = 1500 + \left( \frac{\delta_f}{35^\circ} \right) \cdot 600
 
 ```mermaid
 graph TD
-    A["Stanley Controller (Layer 10)"] -->|Command delta_f| B(PWM Converter)
-    B -->|PWM Signal| C["MG995 Servo GPIO 18"]
-    C -->|Torque output| D["Primary Front Bellcrank"]
+    A["Stanley Controller Layer 10"] -->|"Command delta_f"| B["PWM Converter"]
+    B -->|"PWM Signal"| C["MG995 Servo GPIO 18"]
+    C -->|"Torque output"| D["Primary Front Bellcrank"]
     
-    D -->|Ackermann Geometry| E["Front Left Wheel: delta_fl"]
-    D -->|Ackermann Geometry| F["Front Right Wheel: delta_fr"]
+    D -->|"Ackermann Geometry"| E["Front Left Wheel delta_fl"]
+    D -->|"Ackermann Geometry"| F["Front Right Wheel delta_fr"]
     
-    D -->|Longitudinal Push-Pull Rod| G["Secondary Rear Bellcrank"]
-    G -->|Mechanical Reduction kappa=0.85| H{"Opposite Phase Actuation"}
+    D -->|"Longitudinal Push-Pull Rod"| G["Secondary Rear Bellcrank"]
+    G -->|"Mechanical Reduction kappa 0.85"| H["Opposite Phase Actuation"]
     
-    H -->|Reverse Ackermann| I["Rear Left Wheel: delta_rl"]
-    H -->|Reverse Ackermann| J["Rear Right Wheel: delta_rr"]
+    H -->|"Reverse Ackermann"| I["Rear Left Wheel delta_rl"]
+    H -->|"Reverse Ackermann"| J["Rear Right Wheel delta_rr"]
     
     E -.-> K["Instantaneous Center of Rotation ICR"]
     F -.-> K

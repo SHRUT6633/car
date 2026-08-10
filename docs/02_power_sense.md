@@ -55,18 +55,18 @@ Both buck converters operate at $f_{sw} = 300 \text{ kHz}$. Output voltage rippl
 ```mermaid
 graph TD
     %% Battery and Switchgear
-    BATT["11.1V 3S LiPo 2200mAh"] -->|VCC Positive| FUSE["10A Automotive Blade Fuse"]
+    BATT["11.1V 3S LiPo 2200mAh"] -->|"VCC Positive"| FUSE["10A Automotive Blade Fuse"]
     FUSE --> SW["Main Mechanical Toggle Switch"]
     
     %% Switched Power Split
-    SW -->|11.1V Fused VCC| BUCK_A["Buck Converter A: 5V / 3A (Logic)"]
-    SW -->|11.1V Fused VCC| BUCK_B["Buck Converter B: 6V / 3A (Servo)"]
-    SW -->|11.1V Fused VCC| L298N_VMS["L298N Driver VMS Terminal (+12V IN)"]
+    SW -->|"11.1V Fused VCC"| BUCK_A["Buck Converter A 5V / 3A Logic"]
+    SW -->|"11.1V Fused VCC"| BUCK_B["Buck Converter B 6V / 3A Servo"]
+    SW -->|"11.1V Fused VCC"| L298N_VMS["L298N Driver VMS Terminal +12V IN"]
     
     %% Logic Plane
-    subgraph Logic_Plane ["Logic Plane (Isolated)"]
-        BUCK_A -->|5.0V VCC| RPI["Raspberry Pi 4B 5V IN"]
-        BUCK_A -->|5.0V VCC| ESP["ESP32-S3 DevKit 5V IN"]
+    subgraph Logic_Plane ["Logic Plane Isolated"]
+        BUCK_A -->|"5.0V VCC"| RPI["Raspberry Pi 4B 5V IN"]
+        BUCK_A -->|"5.0V VCC"| ESP["ESP32-S3 DevKit 5V IN"]
         
         RPI --> RPI_3V3["3.3V Output Rail"]
         RPI --> RPI_CSI["CSI Ribbon"]
@@ -82,10 +82,10 @@ graph TD
     ESP --> GPIO21["GPIO 21"]
     
     %% Actuator Plane
-    subgraph Actuator_Plane ["Actuator Plane (Isolated)"]
-        BUCK_B -->|6.0V VCC| SERVO["MG995 Steering Servo VCC"]
+    subgraph Actuator_Plane ["Actuator Plane Isolated"]
+        BUCK_B -->|"6.0V VCC"| SERVO["MG995 Steering Servo VCC"]
         L298N_VMS --> L298N_MOD["L298N Dual H-Bridge Module"]
-        L298N_MOD -->|OUT1 / OUT2| MOTOR["Johnson DC Planetary Gear Motor"]
+        L298N_MOD -->|"OUT1 / OUT2"| MOTOR["Johnson DC Planetary Gear Motor"]
     end
 
     %% Signal Connections
@@ -392,12 +392,12 @@ We implement a multi-threaded, non-blocking architecture. The sensor polling run
 
 ```mermaid
 flowchart TD
-    subgraph L1 ["Layer 1: Hardware Acquisition (100 Hz Thread)"]
-        I2C_FRONT[VL53L1X Front] -->|I2C 0x30| THREAD_POLL
-        I2C_LEFT[VL53L0X Left] -->|I2C 0x31| THREAD_POLL
-        I2C_RIGHT[VL53L0X Right] -->|I2C 0x32| THREAD_POLL
-        I2C_IMU[MPU6050 IMU] -->|I2C 0x68| THREAD_POLL
-        CSI_CAM[Pi Camera] -->|DMA| THREAD_CAM
+    subgraph L1 ["Layer 1: Hardware Acquisition 100 Hz Thread"]
+        I2C_FRONT[VL53L1X Front] -->|"I2C 0x30"| THREAD_POLL
+        I2C_LEFT[VL53L0X Left] -->|"I2C 0x31"| THREAD_POLL
+        I2C_RIGHT[VL53L0X Right] -->|"I2C 0x32"| THREAD_POLL
+        I2C_IMU[MPU6050 IMU] -->|"I2C 0x68"| THREAD_POLL
+        CSI_CAM[Pi Camera] -->|"DMA"| THREAD_CAM
     end
 
     subgraph L2 ["Layer 2: Signal Conditioning"]
@@ -407,13 +407,13 @@ flowchart TD
     end
 
     subgraph L3 ["Layer 3: Unscented Kalman Filter"]
-        IMU_CALIB -->|w_z| UKF_PREDICT[UKF Predict Step]
-        TOF_FILTER -->|d_front, d_left, d_right| UKF_UPDATE[UKF Update Step]
-        HSV_THRESH -->|Pillar Dist & Angle| UKF_UPDATE
+        IMU_CALIB -->|"w_z"| UKF_PREDICT[UKF Predict Step]
+        TOF_FILTER -->|"d_front, d_left, d_right"| UKF_UPDATE[UKF Update Step]
+        HSV_THRESH -->|"Pillar Dist and Angle"| UKF_UPDATE
     end
 
     UKF_UPDATE --> STATE_VECTOR["State Vector: x, y, theta, v, w"]
-    STATE_VECTOR -->|100 Hz| STANLEY[Stanley Controller]
+    STATE_VECTOR -->|"100 Hz"| STANLEY[Stanley Controller]
 ```
 
 When the main control loop queries `sensor_manager.get_latest()`, it reads a thread-safe dictionary, completing in microseconds. This decoupling is the keystone of our software's stability; if a ToF sensor locks the I2C bus, the main loop continues steering using the last known UKF state, ensuring graceful degradation.

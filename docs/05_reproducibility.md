@@ -97,37 +97,37 @@ The electrical interconnect between the Raspberry Pi 4B, ESP32-S3, Sensors, Moto
 ```mermaid
 graph TD
     %% Battery and Switchgear
-    BATT["11.1V 3S LiPo 2200mAh (25C)"] -->|VCC Positive| FUSE["10A Automotive Blade Fuse (Primary Protection)"]
-    FUSE --> SW["Main Mechanical Toggle Switch (20A Rated)"]
+    BATT["11.1V 3S LiPo 2200mAh 25C"] -->|"VCC Positive"| FUSE["10A Automotive Blade Fuse Primary Protection"]
+    FUSE --> SW["Main Mechanical Toggle Switch 20A Rated"]
     
     %% Switched Power Split
-    SW -->|11.1V Fused VCC| BUCK_A["Buck Converter A: 5V / 3A (Logic Plane)"]
-    SW -->|11.1V Fused VCC| BUCK_B["Buck Converter B: 6V / 3A (Actuator Plane)"]
-    SW -->|11.1V Fused VCC| L298N_VMS["L298N Driver VMS Terminal (+11.1V IN)"]
+    SW -->|"11.1V Fused VCC"| BUCK_A["Buck Converter A 5V / 3A Logic Plane"]
+    SW -->|"11.1V Fused VCC"| BUCK_B["Buck Converter B 6V / 3A Actuator Plane"]
+    SW -->|"11.1V Fused VCC"| L298N_VMS["L298N Driver VMS Terminal +11.1V IN"]
     
     %% Logic Plane
-    subgraph Logic_Plane ["Logic Plane (Galvanically Isolated from Inductive Noise)"]
-        BUCK_A -->|5.0V VCC| RPI["Raspberry Pi 4B 5V IN (Compute Core)"]
-        BUCK_A -->|5.0V VCC| ESP["ESP32-S3 DevKit 5V IN (Real-Time Core)"]
+    subgraph Logic_Plane ["Logic Plane Galvanically Isolated"]
+        BUCK_A -->|"5.0V VCC"| RPI["Raspberry Pi 4B 5V IN Compute Core"]
+        BUCK_A -->|"5.0V VCC"| ESP["ESP32-S3 DevKit 5V IN Real-Time Core"]
         
-        RPI --> RPI_3V3["3.3V Output Rail (Regulated)"]
+        RPI --> RPI_3V3["3.3V Output Rail Regulated"]
         RPI --> RPI_CSI["CSI Ribbon Cable Interface"]
         
-        RPI_3V3 --> SENSORS["VL53L1X, 2x VL53L0X, MPU6050 (I2C Bus)"]
-        RPI_CSI --> CAM["Raspberry Pi Camera v2 (Sony IMX219)"]
+        RPI_3V3 --> SENSORS["VL53L1X, 2x VL53L0X, MPU6050 I2C Bus"]
+        RPI_CSI --> CAM["Raspberry Pi Camera v2 Sony IMX219"]
     end
     
     %% ESP32 Output Pins
     ESP --> GPIO18["GPIO 18 / 50Hz PWM Output"]
-    ESP --> GPIO19["GPIO 19 / L298N ENA (Speed Control)"]
-    ESP --> GPIO20["GPIO 20 / L298N IN1 (Direction)"]
-    ESP --> GPIO21["GPIO 21 / L298N IN2 (Direction)"]
+    ESP --> GPIO19["GPIO 19 / L298N ENA Speed Control"]
+    ESP --> GPIO20["GPIO 20 / L298N IN1 Direction"]
+    ESP --> GPIO21["GPIO 21 / L298N IN2 Direction"]
     
     %% Actuator Plane
-    subgraph Actuator_Plane ["Actuator Plane (High Current Draw)"]
-        BUCK_B -->|6.0V VCC| SERVO["MG995 Steering Servo VCC (High Torque)"]
-        L298N_VMS --> L298N_MOD["L298N Dual H-Bridge Module (2A Cont.)"]
-        L298N_MOD -->|OUT1 / OUT2| MOTOR["Johnson DC Planetary Gear Motor (20:1)"]
+    subgraph Actuator_Plane ["Actuator Plane High Current Draw"]
+        BUCK_B -->|"6.0V VCC"| SERVO["MG995 Steering Servo VCC High Torque"]
+        L298N_VMS --> L298N_MOD["L298N Dual H-Bridge Module 2A Cont."]
+        L298N_MOD -->|"OUT1 / OUT2"| MOTOR["Johnson DC Planetary Gear Motor 20:1"]
     end
 
     %% Signal Connections

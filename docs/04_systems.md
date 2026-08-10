@@ -298,20 +298,20 @@ graph TD
         MTR["L298N Motor Driver (GPIO20/21)"]
     end
 
-    CAM -->|Raw 640x480 RGB Frames @ 30Hz| CV
-    TOF1 -->|Front Distance (mm)| UKF
-    TOF2 -->|Left Offset Distance (mm)| UKF
-    TOF3 -->|Right Offset Distance (mm)| UKF
-    IMU -->|Angular Rate Data| UKF
+    CAM -->|"Raw 640x480 RGB Frames at 30Hz"| CV
+    TOF1 -->|"Front Distance in mm"| UKF
+    TOF2 -->|"Left Offset Distance in mm"| UKF
+    TOF3 -->|"Right Offset Distance in mm"| UKF
+    IMU -->|"Angular Rate Data"| UKF
     
-    CV -->|Marker Centroids & Colors| FSM
-    UKF -->|Fused State Vector [x,y,theta,v,omega,b]| FSM
-    FSM -->|Target Behavioral Mode| PLAN
-    PLAN -->|Speed (%) & Steering Target (deg)| PARSE
+    CV -->|"Marker Centroids and Colors"| FSM
+    UKF -->|"Fused State Vector"| FSM
+    FSM -->|"Target Behavioral Mode"| PLAN
+    PLAN -->|"Speed and Steering Target"| PARSE
     
-    PARSE -->|Validated Duty Cycle| PWM
-    PWM -->|1000-2000us Pulse (1500us Center)| SRV
-    PWM -->|100Hz Logic Level Signals| MTR
+    PARSE -->|"Validated Duty Cycle"| PWM
+    PWM -->|"1000-2000us Pulse 1500us Center"| SRV
+    PWM -->|"100Hz Logic Level Signals"| MTR
 ```
 
 ## 9. Design Review Summary
