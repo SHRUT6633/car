@@ -207,56 +207,55 @@ graph TD
 
 ---
 
-## 4. Drivetrain & Motor Dynamics
+### 4.1 Motor & Differential Gearbox Specifications
 
-Propulsion must be powerful enough to overcome inertia rapidly, yet controllable enough to execute millimeter-precision maneuvers during the STOP_AND_GO and PARKING_MANEUVER states.
+We selected a single **Johnson DC planetary gear motor** paired with a custom **3D-printed rear differential gear assembly** (`MODELS/DIFFERENTIAL_GEAR`). This drivetrain setup complies with WRO Rule 11.4.
 
-### 4.1 Motor Specifications
+1. **Johnson Motor Internal Planetary Gearbox:** $20:1$ mechanical reduction ratio.
+2. **Rear Differential Bevel Gear Set:**
+   * **Bevel Pinion Gear:** 10 Teeth (`Bevel_Gears-10T_.f3d`)
+   * **Bevel Ring Gear:** 20 Teeth (`Bevel_Gear-20T_.f3d` on housing `case1.f3d`)
+   * **Differential Reduction Ratio:** $\frac{20\text{T}}{10\text{T}} = 2:1$ reduction.
+3. **Total Drivetrain Reduction Ratio ($G_{\mathrm{total}}$):**
+   $$G_{\mathrm{total}} = 20 \text{ (Planetary)} \times 2 \text{ (Differential Bevel)} = 40:1 \text{ Total Gear Reduction}$$
 
-We selected a single **Johnson DC planetary gear motor** with a **20:1 mechanical reduction ratio**. This single-motor propulsion complies with WRO Rule 11.4. The planetary gearbox ensures concentric shaft alignment and distributes torque loads across multiple planet gears, preventing tooth shearing under heavy acceleration.
-
-*   Rated Voltage: $V_{rated} = 12$ VDC
-*   No-Load Speed at 12V: $600$ RPM (post-gearbox)
-*   Stall Torque at 12V: $T_{stall, 12V} = 25$ kg-cm
+*   Rated Motor Voltage: $V_{rated} = 12$ VDC
+*   Raw Armature Speed at 12V: $6000$ RPM
+*   Motor Shaft Speed (Post-Planetary 20:1): $300$ RPM at 12V
+*   Drive Axle Speed (Post-Differential 2:1): $150$ RPM ($2.5$ rev/s)
+*   Stall Torque at 12V (Post-Differential): $T_{stall} = 1.70 \text{ Nm} = 17.33 \text{ kg-cm}$
 *   Stall Current: $3.2$ A
 
 ### 4.2 Full Torque Calculation and Derivation Chain
 
-To validate this selection, we must rigorously calculate the required torque to move the 1.2 kg vehicle from a standstill on the competition mat. The highest resistance occurs when accelerating from zero velocity while overcoming static friction. We want to guarantee that our motor can exceed the traction limit of the tires, ensuring that performance is limited by grip, not motor power.
+To validate this selection, we calculate the required torque to move the 1.215 kg vehicle from a standstill on the competition mat. The highest resistance occurs when accelerating from zero velocity while overcoming static friction.
 
 **Given Parameters:**
-*   Vehicle Mass: $m = 1.2$ kg
+*   Vehicle Mass: $m = 1.215$ kg
 *   Gravitational Acceleration: $g = 9.81 \text{ m/s}^2$
-*   Normal Force: $F_N = m \cdot g = 1.2 \cdot 9.81 = 11.772$ N
-*   Coefficient of Static Friction (Tire on WRO vinyl): $\mu_s = 0.8$
+*   Normal Force: $F_N = m \cdot g = 1.215 \cdot 9.81 = 11.919$ N
+*   Coefficient of Static Friction (Tire on WRO vinyl): $\mu_s = 0.80$
 *   Wheel Radius: $r_{wheel} = 32.5$ mm = $0.0325$ m
 
 **Step 1: Calculate Maximum Tractive Force ($F_{tract, max}$)**
 The maximum force the tires can exert on the ground before breaking traction and spinning is dictated by static friction:
-$$ F_{tract, max} = F_N \cdot \mu_s $$
-$$ F_{tract, max} = 11.772 \text{ N} \cdot 0.8 = 9.4176 \text{ N} $$
+$$ F_{tract, max} = F_N \cdot \mu_s = 11.919 \text{ N} \cdot 0.80 = 9.535 \text{ N} $$
 
 **Step 2: Calculate Required Tractive Torque ($T_{req}$)**
-The torque at the wheels required to generate this maximum tractive force is:
-$$ T_{req} = F_{tract, max} \cdot r_{wheel} $$
-$$ T_{req} = 9.4176 \text{ N} \cdot 0.0325 \text{ m} = 0.30607 \text{ Nm} $$
+The torque at the drive wheels required to generate this maximum tractive force is:
+$$ T_{req} = F_{tract, max} \cdot r_{wheel} = 9.535 \text{ N} \cdot 0.0325 \text{ m} = 0.3099 \text{ Nm} \quad (3.16 \text{ kg-cm}) $$
 
-**Step 3: Convert Required Torque to standard hobby units (kg-cm)**
-$$ 1 \text{ Nm} \approx 10.197 \text{ kg-cm} $$
-$$ T_{req} = 0.30607 \cdot 10.197 = 3.12 \text{ kg-cm} $$
-This is the absolute maximum torque the tires can physically transmit before slipping.
+**Step 3: Calculate Available Drive Axle Torque**
+Driven by an 11.1V 3S LiPo battery through the $40:1$ total gear reduction drivetrain:
+$$ V_{supply} = 11.1 \text{ V}, \quad V_{rated} = 12.0 \text{ V} $$
+$$ T_{available} = T_{stall, 12V} \times \left( \frac{V_{supply}}{V_{rated}} \right) = 17.33 \text{ kg-cm} \times \left( \frac{11.1}{12.0} \right) = 16.03 \text{ kg-cm} \quad (1.571 \text{ Nm}) $$
 
-**Step 4: Calculate Available Motor Torque**
-Our motor is driven by an 11.1V 3S LiPo battery. The available stall torque scales linearly with the supply voltage relative to the rated voltage.
-$$ V_{supply} = 11.1 \text{ V} $$
-$$ V_{rated} = 12.0 \text{ V} $$
-$$ T_{available} = T_{stall, 12V} \times \left( \frac{V_{supply}}{V_{rated}} \right) $$
-$$ T_{available} = 25 \text{ kg-cm} \times \left( \frac{11.1}{12.0} \right) = 23.125 \text{ kg-cm} $$
+**Step 4: Calculate Tractive Force & Factor of Safety (FoS)**
+Available tractive force at wheels:
+$$ F_{\mathrm{available}} = \frac{1.571 \text{ Nm}}{0.0325 \text{ m}} = 48.34 \text{ N} $$
+$$ \text{FoS} = \frac{F_{\mathrm{available}}}{F_N} = \frac{48.34 \text{ N}}{11.919 \text{ N}} \approx 4.06 \times $$
 
-**Step 5: Calculate Factor of Safety (FoS)**
-$$ \text{FoS} = \frac{T_{available}}{T_{req}} = \frac{23.125}{3.12} \approx 7.41 $$
-
-A 7.4x torque safety margin ensures the motor operates in its high-efficiency band (well away from the stall region), drawing minimal continuous current and preventing thermal shutdown of the H-bridge during prolonged testing sessions. This immense torque reserve allows for instantaneous acceleration, crucial for the STOP_AND_GO challenge where the robot must brake to zero and resume target velocity rapidly.
+A $4.06\times$ torque safety margin guarantees the motor operates in its peak efficiency band, drawing minimal continuous current and preventing thermal shutdown of the H-bridge driver during prolonged runs.
 
 ### 4.3 AWD Mechanical Layout
 

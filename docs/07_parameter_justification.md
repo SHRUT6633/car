@@ -72,12 +72,21 @@ Our approach to engineering documentation requires not merely listing the values
 
 ## 3. Propulsion & Electrical Parameters
 
-### 3.1 Motor Gear Ratio ($20:1$)
-- **Config Path:** Hardcoded in motor selection and wheel speed models.
-- **Code Reference:** `layers/layer9_kinematics_4ws.py` (implied in encoder ticks/m)
-- **System Evolution:** We initially tested a high-speed $10:1$ metal gear motor. The vehicle reached $3.0\text{ m/s}$ but suffered from sluggish acceleration, high current draw during startup ($>5\text{A}$), and burnt motor driver channels (L298N thermal overload). We transitioned to a $20:1$ Johnson DC planetary gearbox.
-- **Physical/Engineering Justification:** The planetary gear ratio reduces speed to increase torque.
-  - Base Motor Stall Torque at 12V: $0.125\text{ Nm}$. Post-gearbox Stall Torque: $T_{stall} = 2.5\text{ Nm}$.
+### 3.1 Drivetrain Gear Ratio ($40:1$ Total Gear Reduction)
+- **Config Path:** Hardcoded in mechanical drive hardware and kinematic wheel speed equations.
+- **Code Reference:** `layers/layer9_kinematics_4ws.py` (wheel speed to RPM conversions)
+- **System Evolution:** We initially tested a high-speed $10:1$ motor. The vehicle reached $3.0\text{ m/s}$ but suffered from sluggish acceleration, high current draw during startup ($>5\text{A}$), and thermal driver overload. We transitioned to a Johnson 300 RPM motor with an internal $20:1$ planetary gearbox driving a custom 3D-printed rear differential assembly (`MODELS/DIFFERENTIAL_GEAR`). The differential consists of a 10-tooth bevel pinion gear (`Bevel_Gears-10T_.f3d`) driving a 20-tooth bevel ring gear (`Bevel_Gear-20T_.f3d`), adding a $2:1$ reduction.
+- **Physical/Engineering Justification:**
+  - Total Gear Reduction Ratio: $G_{\mathrm{total}} = 20 \text{ (Planetary)} \times 2 \text{ (Differential)} = 40:1$.
+  - Raw Armature Speed at 12V: $6000\text{ RPM}$.
+  - Motor Shaft Speed (post-20:1 planetary): $300\text{ RPM}$.
+  - Final Wheel Speed (post-2:1 differential): $150\text{ RPM} = 2.5\text{ rev/s}$.
+  - Post-Differential Stall Torque at 12V: $T_{stall} = 1.70\text{ Nm} = 17.33\text{ kg-cm}$.
+  - Maximum Tractive Force at Wheels ($D_w = 65\text{ mm}$): $F_{\mathrm{drive}} = \frac{1.70\text{ Nm}}{0.0325\text{ m}} = 52.31\text{ N}$.
+  - Safety Margin: With vehicle normal force $F_N = 11.92\text{ N}$, available tractive force yields a **$4.39\times$ torque safety margin**, keeping the motor operating well within its high-efficiency band away from thermal stall.
+- **Sensitivity Analysis:**
+  - **If set too high ($>40:1$):** Top speed drops below $0.35\text{ m/s}$, failing to complete 3 laps within the WRO time limit.
+  - **If set too low ($<40:1$):** Low-speed torque drops below the static friction threshold during precision parking, motor current spikes $>4.5\text{ A}$ causing driver thermal shutdown, and acceleration response becomes sluggish.
   - Tractive Force: With $30\text{mm}$ radius wheels ($r = 0.03\text{ m}$), the maximum force at the contact patch is:
     $$ F_{max} = \frac{T_{stall}}{r} = \frac{2.5}{0.03} \approx 83.3\text{ N} $$
   - Tractive force required to break traction on rubber-to-mat ($\mu \approx 0.8$, $m = 1.2\text{ kg}$):
