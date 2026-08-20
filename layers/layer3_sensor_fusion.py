@@ -286,8 +286,8 @@ class UltraPrecisionUKF:
             
             heading_diff = math.atan2(math.sin(nearest_orth_rad - self.x[2, 0]), math.cos(nearest_orth_rad - self.x[2, 0]))
             
-            # If drift is minor (less than 15 deg), reset it
-            if abs(heading_diff) < math.radians(15.0):
+            # If drift is minor (between 0.5 deg and 15 deg), reset it
+            if math.radians(0.5) < abs(heading_diff) < math.radians(15.0):
                 # Reset theta to exact orthogonal direction
                 logging.info(f"[UKF] Yaw Drift Reset Triggered! Resetting heading from {curr_heading_deg:.2f}° to {nearest_orth_deg:.2f}° (Diff: {math.degrees(heading_diff):.2f}°)")
                 self.x[2, 0] = nearest_orth_rad
