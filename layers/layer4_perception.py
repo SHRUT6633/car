@@ -60,11 +60,11 @@ class ThreadedCameraManager:
             if PICAM2_AVAILABLE:
                 try:
                     self.picam2 = Picamera2()
-                    vid_config = self.picam2.create_video_configuration(main={"size": (640, 480), "format": "RGB888"})
+                    vid_config = self.picam2.create_video_configuration(main={"size": (640, 480), "format": "BGR888"})
                     self.picam2.configure(vid_config)
                     self.picam2.start()
                     time.sleep(0.2)
-                    logging.info("[LAYER 4] Picamera2 Native Stream Active (OV5647/IMX219).")
+                    logging.info("[LAYER 4] Picamera2 Native BGR888 Stream Active (OV5647/IMX219).")
                     self.latest_perception["camera_ok"] = True
                     return
                 except Exception as p_err:
@@ -137,8 +137,7 @@ class ThreadedCameraManager:
             frame = None
             if hasattr(self, 'picam2') and self.picam2 is not None:
                 try:
-                    frame_rgb = self.picam2.capture_array("main")
-                    frame = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
+                    frame = self.picam2.capture_array("main")
                 except Exception:
                     frame = None
             elif self.cap and self.cap.isOpened():
