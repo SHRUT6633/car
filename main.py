@@ -127,7 +127,6 @@ def main():
         logging.warning("[MAIN] ⚠ LED2 OFF — Sensor(s) degraded — continuing with last-known values")
 
     # ── Phase 2b: Camera Health Check → LED3 ─────────────────────────────
-    # PerceptionLayer reports readiness via is_ready() flag
     camera_ok = getattr(layer4_percep, "is_ready", lambda: True)()
     if camera_ok:
         sys_mgr.set_camera_health(True)    # LED3 ON  ✓
@@ -135,6 +134,18 @@ def main():
     else:
         sys_mgr.set_camera_health(False)   # LED3 OFF ✗
         logging.warning("[MAIN] ⚠ LED3 OFF — Camera not available — vision fallback active")
+
+    # ── Phase 2b-2: Auto Web Camera Server Spawner ────────────────────────
+    test_mode_cfg = config.get("test_mode", {})
+    if test_mode_cfg.get("enable_auto_web_stream", True):
+        try:
+            import threading
+            from utils.camera_stream import main as start_web_server
+            web_thread = threading.Thread(target=start_web_server, daemon=True)
+            web_thread.start()
+            logging.info("[MAIN] ▶ Live Camera Stream Active: http://localhost:8080 (or http://<PI_IP>:8080)")
+        except Exception as web_err:
+            logging.warning(f"[MAIN] Web stream autostart: {web_err}")
 
     # ── Phase 2c: ESP32 Serial Health Check → LED4 ───────────────────────
     serial_ok = _probe_serial(layer10_ctrl)
@@ -224,6 +235,12 @@ def main():
             ctrl_output = layer10_ctrl.compute_control(localization, path_plan, traj_opt)
             commanded_steering_rad = ctrl_output["desired_steering_rad"]
             commanded_speed        = ctrl_output["target_speed"]
+
+            # ── Test Bench Override Mode ──────────────────────────────────
+            test_mode = config.get("test_mode", {})
+            if test_mode.get("override_mode", False):
+                commanded_speed = float(test_mode.get("override_speed_pct", 35.0))
+                commanded_steering_rad = math.radians(float(test_mode.get("override_steering_deg", 0.0)))
 
             # ── Layer 9: 4WS Kinematic Model ─────────────────────────────
             kin_output      = layer9_kin.compute_steering(commanded_steering_rad)

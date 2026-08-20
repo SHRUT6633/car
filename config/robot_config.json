@@ -69,5 +69,12 @@
     "max_speed": 100,
     "min_speed": 20,
     "pid_speed": { "kp": 1.2, "ki": 0.05, "kd": 0.1 }
+  },
+  "test_mode": {
+    "override_mode": false,
+    "override_speed_pct": 35.0,
+    "override_steering_deg": 0.0,
+    "enable_emergency_brake": false,
+    "enable_auto_web_stream": true
   }
 }
