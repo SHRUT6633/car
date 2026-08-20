@@ -11,6 +11,12 @@ except ImportError:
     CV2_AVAILABLE = False
     logging.warning("[LAYER 4] OpenCV not available.")
 
+try:
+    from picamera2 import Picamera2
+    PICAM2_AVAILABLE = True
+except ImportError:
+    PICAM2_AVAILABLE = False
+
 class ThreadedCameraManager:
     """
     Layer 4: Async Multi-Threaded Camera Ingestion & Perception Engine
@@ -42,7 +48,21 @@ class ThreadedCameraManager:
 
     def _init_camera(self):
         try:
-            # 1. Try GStreamer libcamera pipeline (Standard for Pi Camera v2 on modern Raspberry Pi OS)
+            # 0. Try Picamera2 (Native Raspberry Pi OS libcamera interface)
+            if PICAM2_AVAILABLE:
+                try:
+                    self.picam2 = Picamera2()
+                    config = self.picam2.create_preview_configuration(main={"size": (640, 480)})
+                    self.picam2.configure(config)
+                    self.picam2.start()
+                    logging.info("[LAYER 4] Picamera2 Native Stream Active.")
+                    self.latest_perception["camera_ok"] = True
+                    return
+                except Exception as p_err:
+                    logging.warning(f"[LAYER 4] Picamera2 init warning: {p_err}")
+                    self.picam2 = None
+
+            # 1. Try GStreamer libcamera pipeline
             gstreamer_pipelines = [
                 "libcamerasrc ! video/x-raw, width=640, height=480, framerate=30/1 ! videoconvert ! videoscale ! appsink drop=true",
                 "v4l2src device=/dev/video0 ! video/x-raw, width=640, height=480 ! videoconvert ! appsink drop=true"
@@ -89,7 +109,9 @@ class ThreadedCameraManager:
             logging.error(f"[LAYER 4] Camera Init Error: {e}")
 
     def start_thread(self):
-        if self.cap and self.cap.isOpened():
+        has_picam2 = hasattr(self, 'picam2') and self.picam2 is not None
+        has_cap = self.cap and self.cap.isOpened()
+        if has_picam2 or has_cap:
             self.running = True
             self.worker_thread = threading.Thread(target=self._async_camera_loop, daemon=True)
             self.worker_thread.start()
@@ -98,8 +120,19 @@ class ThreadedCameraManager:
     def _async_camera_loop(self):
         """Background Thread: Image processing loop @ 30 FPS."""
         while self.running:
-            ret, frame = self.cap.read()
-            if not ret or frame is None:
+            frame = None
+            if hasattr(self, 'picam2') and self.picam2 is not None:
+                try:
+                    frame_rgb = self.picam2.capture_array()
+                    frame = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
+                except Exception:
+                    frame = None
+            elif self.cap and self.cap.isOpened():
+                ret, frame = self.cap.read()
+                if not ret:
+                    frame = None
+
+            if frame is None:
                 time.sleep(0.02)
                 continue
 
