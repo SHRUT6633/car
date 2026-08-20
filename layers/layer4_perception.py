@@ -42,9 +42,29 @@ class ThreadedCameraManager:
 
     def _init_camera(self):
         try:
+            # 1. Try GStreamer libcamera pipeline (Standard for Pi Camera v2 on modern Raspberry Pi OS)
+            gstreamer_pipelines = [
+                "libcamerasrc ! video/x-raw, width=640, height=480, framerate=30/1 ! videoconvert ! videoscale ! appsink drop=true",
+                "v4l2src device=/dev/video0 ! video/x-raw, width=640, height=480 ! videoconvert ! appsink drop=true"
+            ]
+            for gst_str in gstreamer_pipelines:
+                try:
+                    cap = cv2.VideoCapture(gst_str, cv2.CAP_GSTREAMER)
+                    if cap.isOpened():
+                        ret, test_frame = cap.read()
+                        if ret and test_frame is not None:
+                            self.cap = cap
+                            logging.info("[LAYER 4] OpenCV GStreamer libcamera stream active.")
+                            self.latest_perception["camera_ok"] = True
+                            return
+                        else:
+                            cap.release()
+                except Exception:
+                    pass
+
+            # 2. Try V4L2 device indices
             device_idx = self.cam_config.get("device_index", 0)
             indices_to_try = [device_idx, 0, 1, 2, 4, 10]
-            # Remove duplicates preserving order
             indices_to_try = list(dict.fromkeys(indices_to_try))
             
             for idx in indices_to_try:
