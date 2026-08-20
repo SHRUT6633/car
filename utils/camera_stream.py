@@ -146,12 +146,24 @@ def main():
     render_thread = threading.Thread(target=perception_render_loop, daemon=True)
     render_thread.start()
     
-    port = 8080
-    server = ThreadingHTTPServer(('0.0.0.0', port), StreamHandler)
+    server = None
+    active_port = 8080
+    for try_port in [8080, 8081, 8082, 8085]:
+        try:
+            server = ThreadingHTTPServer(('0.0.0.0', try_port), StreamHandler)
+            active_port = try_port
+            break
+        except OSError:
+            print(f"[CAM SERVER] Port {try_port} in use, trying next port...")
+            
+    if server is None:
+        print("[CAM SERVER] ERROR: All ports (8080-8085) are in use!")
+        sys.exit(1)
+
     print("\n=======================================================================")
     print("  WRO 2026 PRODUCTION CAMERA STREAM SERVER READY")
-    print(f"  Local Access:   http://localhost:{port}")
-    print(f"  Network Access: http://<PI_IP_ADDRESS>:{port}")
+    print(f"  Local Access:   http://localhost:{active_port}")
+    print(f"  Network Access: http://<PI_IP_ADDRESS>:{active_port}")
     print("=======================================================================\n")
     try:
         server.serve_forever()
