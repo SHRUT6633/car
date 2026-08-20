@@ -52,14 +52,20 @@ class ThreadedCameraManager:
             if PICAM2_AVAILABLE:
                 try:
                     self.picam2 = Picamera2()
-                    config = self.picam2.create_preview_configuration(main={"size": (640, 480)})
-                    self.picam2.configure(config)
+                    vid_config = self.picam2.create_video_configuration(main={"size": (640, 480), "format": "RGB888"})
+                    self.picam2.configure(vid_config)
                     self.picam2.start()
-                    logging.info("[LAYER 4] Picamera2 Native Stream Active.")
+                    time.sleep(0.2)
+                    logging.info("[LAYER 4] Picamera2 Native Stream Active (OV5647/IMX219).")
                     self.latest_perception["camera_ok"] = True
                     return
                 except Exception as p_err:
                     logging.warning(f"[LAYER 4] Picamera2 init warning: {p_err}")
+                    if hasattr(self, 'picam2') and self.picam2:
+                        try:
+                            self.picam2.close()
+                        except Exception:
+                            pass
                     self.picam2 = None
 
             # 1. Try GStreamer libcamera pipeline
@@ -123,7 +129,7 @@ class ThreadedCameraManager:
             frame = None
             if hasattr(self, 'picam2') and self.picam2 is not None:
                 try:
-                    frame_rgb = self.picam2.capture_array()
+                    frame_rgb = self.picam2.capture_array("main")
                     frame = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
                 except Exception:
                     frame = None
@@ -261,8 +267,18 @@ class ThreadedCameraManager:
 
     def stop(self):
         self.running = False
+        if hasattr(self, 'picam2') and self.picam2:
+            try:
+                self.picam2.stop()
+                self.picam2.close()
+            except Exception:
+                pass
+            self.picam2 = None
         if self.cap:
-            self.cap.release()
+            try:
+                self.cap.release()
+            except Exception:
+                pass
 
 class PerceptionLayer(ThreadedCameraManager):
     """Layer 4 Interface backwards compatibility alias."""
