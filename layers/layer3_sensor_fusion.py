@@ -187,7 +187,7 @@ class UltraPrecisionUKF:
         y = z - z_pred
         try:
             inv_S = np.linalg.inv(S)
-            d_mahalanobis = float(y.T @ inv_S @ y)
+            d_mahalanobis = float((y.T @ inv_S @ y)[0, 0])
             if d_mahalanobis > 12.0: # Outlier rejection
                 return
                 
@@ -239,7 +239,7 @@ class UltraPrecisionUKF:
         
         try:
             inv_S = np.linalg.inv(S)
-            d_mahalanobis = float(y.T @ inv_S @ y)
+            d_mahalanobis = float((y.T @ inv_S @ y)[0, 0])
             if d_mahalanobis < 16.0: # Mahalanobis gate
                 K = Pxz @ inv_S
                 self.x = self.x + K @ y
