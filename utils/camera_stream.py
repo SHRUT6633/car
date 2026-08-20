@@ -87,6 +87,7 @@ def perception_render_loop():
 
 class ThreadingHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
     daemon_threads = True
+    allow_reuse_address = True
 
 class StreamHandler(BaseHTTPRequestHandler):
     def do_GET(self):

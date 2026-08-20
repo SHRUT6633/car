@@ -4,6 +4,14 @@ import threading
 import math
 import numpy as np
 
+import sys
+import os
+
+# Append system dist-packages paths so Picamera2 system package is accessible inside virtualenv
+for sys_p in ['/usr/lib/python3/dist-packages', '/usr/lib/python3.11/dist-packages', '/usr/lib/python3.12/dist-packages', '/usr/lib/python3.13/dist-packages']:
+    if os.path.exists(sys_p) and sys_p not in sys.path:
+        sys.path.append(sys_p)
+
 try:
     import cv2
     CV2_AVAILABLE = True
