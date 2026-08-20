@@ -43,14 +43,28 @@ class ThreadedCameraManager:
     def _init_camera(self):
         try:
             device_idx = self.cam_config.get("device_index", 0)
-            self.cap = cv2.VideoCapture(device_idx)
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.cam_config.get("frame_width", 640))
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.cam_config.get("frame_height", 480))
-            self.cap.set(cv2.CAP_PROP_FPS, self.cam_config.get("fps", 30))
+            indices_to_try = [device_idx, 0, 1, 2, 4, 10]
+            # Remove duplicates preserving order
+            indices_to_try = list(dict.fromkeys(indices_to_try))
             
-            if self.cap.isOpened():
-                logging.info("[LAYER 4] OpenCV Camera Ingestion Active.")
-                self.latest_perception["camera_ok"] = True
+            for idx in indices_to_try:
+                cap = cv2.VideoCapture(idx, cv2.CAP_V4L2)
+                if not cap.isOpened():
+                    cap = cv2.VideoCapture(idx)
+                    
+                if cap.isOpened():
+                    ret, test_frame = cap.read()
+                    if ret and test_frame is not None:
+                        self.cap = cap
+                        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.cam_config.get("frame_width", 640))
+                        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.cam_config.get("frame_height", 480))
+                        self.cap.set(cv2.CAP_PROP_FPS, self.cam_config.get("fps", 30))
+                        logging.info(f"[LAYER 4] OpenCV Camera Ingestion Active on device index {idx}.")
+                        self.latest_perception["camera_ok"] = True
+                        return
+                    else:
+                        cap.release()
+            logging.warning("[LAYER 4] Could not find an active camera stream on indices 0..10.")
         except Exception as e:
             logging.error(f"[LAYER 4] Camera Init Error: {e}")
 
