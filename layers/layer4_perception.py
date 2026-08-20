@@ -140,9 +140,15 @@ class ThreadedCameraManager:
             perception_res["camera_ok"] = True
 
             with self.lock:
+                self.latest_frame = frame.copy()
                 self.latest_perception = perception_res
 
             time.sleep(0.01)
+
+    def get_frame(self):
+        """Thread-safe access to latest raw camera frame."""
+        with self.lock:
+            return self.latest_frame.copy() if hasattr(self, 'latest_frame') and self.latest_frame is not None else None
 
     def _process_frame_internal(self, frame) -> dict:
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)

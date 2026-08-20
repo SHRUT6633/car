@@ -49,38 +49,29 @@ def main():
     cam = ThreadedCameraManager(config)
     time.sleep(0.5)
     
-    if not cam.is_ready():
-        print("\033[1;31m[ERROR] Camera hardware not responding!\033[0m")
-        cam.stop()
-        sys.exit(1)
-        
     # Clear screen once on start
     sys.stdout.write("\033[2J\033[H")
     sys.stdout.flush()
     
     try:
         while True:
-            if not cam.cap or not cam.cap.isOpened():
-                time.sleep(0.05)
-                continue
-                
-            ret, frame = cam.cap.read()
-            if not ret or frame is None:
-                time.sleep(0.03)
-                continue
-                
-            perc = cam.process_frame(frame)
+            frame = cam.get_frame()
+            perc = cam.process_frame()
             
-            # Draw overlay indicator onto frame
-            debug_frame = frame.copy()
-            if perc.get("red_pillar"):
-                r = perc["red_pillar"]
-                cv2.rectangle(debug_frame, (r['bbox'][0], r['bbox'][1]),
-                              (r['bbox'][0] + r['bbox'][2], r['bbox'][1] + r['bbox'][3]), (0, 0, 255), 4)
-            if perc.get("green_pillar"):
-                g = perc["green_pillar"]
-                cv2.rectangle(debug_frame, (g['bbox'][0], g['bbox'][1]),
-                              (g['bbox'][0] + g['bbox'][2], g['bbox'][1] + g['bbox'][3]), (0, 255, 0), 4)
+            if frame is None:
+                debug_frame = np.zeros((240, 320, 3), dtype=np.uint8)
+                cv2.putText(debug_frame, "SEARCHING CAMERA...", (40, 120),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 165, 255), 2)
+            else:
+                debug_frame = frame.copy()
+                if perc.get("red_pillar"):
+                    r = perc["red_pillar"]
+                    cv2.rectangle(debug_frame, (r['bbox'][0], r['bbox'][1]),
+                                  (r['bbox'][0] + r['bbox'][2], r['bbox'][1] + r['bbox'][3]), (0, 0, 255), 4)
+                if perc.get("green_pillar"):
+                    g = perc["green_pillar"]
+                    cv2.rectangle(debug_frame, (g['bbox'][0], g['bbox'][1]),
+                                  (g['bbox'][0] + g['bbox'][2], g['bbox'][1] + g['bbox'][3]), (0, 255, 0), 4)
             
             # Get terminal dimensions
             term_cols, term_lines = shutil.get_terminal_size((80, 24))
@@ -113,7 +104,7 @@ def main():
             
             sys.stdout.write(gui)
             sys.stdout.flush()
-            time.sleep(0.05)
+            time.sleep(0.04)
             
     except KeyboardInterrupt:
         print("\n\033[1;33m[TERMINAL CAM] Exiting viewer...\033[0m")
