@@ -3,6 +3,13 @@ import logging
 import threading
 
 try:
+    import smbus
+except ImportError:
+    import smbus2 as smbus
+    import sys
+    sys.modules['smbus'] = smbus
+
+try:
     import board
     import busio
     from digitalio import DigitalInOut, Direction
